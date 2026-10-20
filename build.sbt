@@ -23,11 +23,13 @@ lazy val core = (project in file("core")).settings(crossBuilt, name := "verity-c
     "io.github.okay-effects" %% "okay-effects-shape" % okayEffects,
     "io.github.okay-effects" %% "okay-effects-io" % okayEffects,
     "io.github.okay-effects" %% "okay-face" % okayFace,
+    "io.github.okay-effects" %% "okay-mcp" % "0.1.0-SNAPSHOT",
+    "io.github.okay-effects" %% "okay-face-mcp" % okayFace,
     "io.github.okay-effects" %% "okay-face-test" % okayFace % Test,
     "io.github.okay-effects" %% "okay-effects-machine" % okayEffects % Test,
     "io.github.okay-effects" %% "okay-effects-free" % okayEffects % Test))
 
-/** THE FACES: `verity [file]` at the terminal, `verity swing [file]` in a window */
+/** THE FACES: `verity [file]` at the terminal, `verity swing [file]` in a window, `verity mcp [file]` for an agent */
 lazy val app = (project in file("app")).dependsOn(core).settings(crossBuilt, name := "verity",
   // its own JVM, with the terminal's input: `sbt app/run` reads what is typed, or piped
   fork := true, run / connectInput := true,

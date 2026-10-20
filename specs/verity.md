@@ -1,7 +1,7 @@
 # verity — the one who remembers your details exactly
 
-Status: v1 IN, 2026-10-20 — `core` (the model, the journal, the effects and handlers, the scenario) and `app` (the
-terminal and the Swing window); the whole application tested under okay-face's test face by scripts on the machine and
+Status: v1 IN, 2026-10-20 — `core` (the model, the journal, the effects and handlers, the scenario, the agent's face with
+consent by elicitation) and `app` (the terminal, the Swing window, MCP over stdio); the whole application tested under okay-face's test face by scripts on the machine and
 on Free. What this spec says of v1 holds, with the deviations noted inline as DONE/CHANGED. Open source, Apache-2.0.
 
 ## Overview

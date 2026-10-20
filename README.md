@@ -8,6 +8,7 @@ the form for you, with your consent each time.
 sbt "app/run"                 # at the terminal, ~/.verity/verity.jsonl
 sbt "app/run my.jsonl"        # another file
 sbt "app/run swing my.jsonl"  # in a window
+sbt "app/run mcp my.jsonl"    # for an agent, MCP over stdio: the same screens as tools, a secret only with your consent
 ```
 
 ## What it is, in one paragraph
@@ -28,5 +29,5 @@ window and the test script are handlers of `Face`; the disk and a map in memory 
 the handler of `Reveal`, performing `Store` and `Consent` outside it. The whole application runs under the test face by
 a script of choices, every handler in memory, on okay-simple's machine and on its `Free` monad alike (`core/src/test`).
 
-Status: v1 at the terminal and in a window. Next: merging two files with conflicts shown, encryption, the web face, the
-MCP face for agents. [specs/verity.md](specs/verity.md).
+Status: v1 at the terminal, in a window, and for an agent over MCP (the owner asked through the client by elicitation before
+a secret is shown, every showing written down). Next: merging two files with conflicts shown, encryption, the web face. [specs/verity.md](specs/verity.md).
