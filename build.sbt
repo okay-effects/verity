@@ -1,4 +1,4 @@
-/** verity: Scala 3.3 LTS and 2.13, as okay-face and okay-simple; the JVM; Scala.js when the web face comes */
+/** verity: Scala 3.3 LTS and 2.13, as okay-faces and okay-simple; the JVM; Scala.js when the web face comes */
 val scala3 = "3.3.8"
 val scala2 = "2.13.18"
 
@@ -7,9 +7,9 @@ ThisBuild / version := "0.1.0-SNAPSHOT"
 ThisBuild / scalaVersion := scala3
 ThisBuild / licenses := List("Apache-2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0.txt"))
 ThisBuild / resolvers += "okay-effects" at "https://okay-effects.github.io/okay-simple/maven"
-/** okay-simple's and okay-face's snapshots, published locally until released */
+/** okay-simple's and okay-faces' snapshots, published locally until released */
 val okayEffects = "0.1.1-SNAPSHOT"
-val okayFace = "0.1.0-SNAPSHOT"
+val okayFaces = "0.1.0-SNAPSHOT"
 
 def crossBuilt: Seq[Def.Setting[?]] = Seq(
   crossScalaVersions := Seq(scala3, scala2),
@@ -22,14 +22,14 @@ lazy val core = (project in file("core")).settings(crossBuilt, name := "verity-c
     "io.github.okay-effects" %% "okay-effects" % okayEffects,
     "io.github.okay-effects" %% "okay-effects-shape" % okayEffects,
     "io.github.okay-effects" %% "okay-effects-io" % okayEffects,
-    "io.github.okay-effects" %% "okay-face" % okayFace,
+    "io.github.okay-effects" %% "okay-faces" % okayFaces,
     "io.github.okay-effects" %% "okay-mcp" % "0.1.0-SNAPSHOT",
-    "io.github.okay-effects" %% "okay-face-mcp" % okayFace,
+    "io.github.okay-effects" %% "okay-faces-mcp" % okayFaces,
     "io.github.okay-effects" %% "okay-http" % "0.1.0-SNAPSHOT",
     "io.github.okay-effects" %% "okay-http-rest" % "0.1.0-SNAPSHOT",
-    "io.github.okay-effects" %% "okay-face-rest" % okayFace,
-    "io.github.okay-effects" %% "okay-face-html" % okayFace,
-    "io.github.okay-effects" %% "okay-face-test" % okayFace % Test,
+    "io.github.okay-effects" %% "okay-faces-rest" % okayFaces,
+    "io.github.okay-effects" %% "okay-faces-html" % okayFaces,
+    "io.github.okay-effects" %% "okay-faces-test" % okayFaces % Test,
     "io.github.okay-effects" %% "okay-effects-machine" % okayEffects % Test,
     "io.github.okay-effects" %% "okay-effects-free" % okayEffects % Test))
 
@@ -38,8 +38,8 @@ lazy val app = (project in file("app")).dependsOn(core).settings(crossBuilt, nam
   // its own JVM, with the terminal's input: `sbt app/run` reads what is typed, or piped
   fork := true, run / connectInput := true,
   libraryDependencies ++= Seq(
-    "io.github.okay-effects" %% "okay-face-term" % okayFace,
-    "io.github.okay-effects" %% "okay-face-swing" % okayFace,
+    "io.github.okay-effects" %% "okay-faces-term" % okayFaces,
+    "io.github.okay-effects" %% "okay-faces-swing" % okayFaces,
     "io.github.okay-effects" %% "okay-effects-machine" % okayEffects))
 
 lazy val root = (project in file(".")).aggregate(core, app).settings(name := "verity-root", publish / skip := true)

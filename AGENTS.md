@@ -1,7 +1,7 @@
 # AGENTS.md — verity
 
 Read before anything else. Then `specs/verity.md`; the code follows the spec, a design change is a spec change first.
-okay-face's specs (`../okay-face/specs/`) are the library's contract.
+okay-faces' specs (`../okay-faces/specs/`) are the library's contract.
 
 - A program in `Face + Vault + Reveal + Consent + Clipboard + Files`; nothing in the scenario knows a face.
 - Secrets reach a `View` only through `Reveal`, and `Reveal` only through the policy. Never log a secret.

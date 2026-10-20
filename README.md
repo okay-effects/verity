@@ -25,7 +25,7 @@ owner at their own face is shown; an agent is shown only with the owner's consen
 ## How it is built
 
 One program — the scenario — in six effects of [okay-simple](https://github.com/okay-effects/okay-simple):
-`Face` ([okay-face](https://github.com/okay-effects/okay-face)'s dialogue), `Store` (the vault), `Reveal`, `Consent`,
+`Face` ([okay-faces](https://github.com/okay-effects/okay-faces)'s dialogue), `Store` (the vault), `Reveal`, `Consent`,
 `Clipboard`, `Files`, and `Navigation` for where it is. No line of it knows a face or a disk. The terminal, the Swing
 window and the test script are handlers of `Face`; the disk and a map in memory are handlers of `Files`; the policy is
 the handler of `Reveal`, performing `Store` and `Consent` outside it. The whole application runs under the test face by

@@ -1,7 +1,7 @@
 # verity — the one who remembers your details exactly
 
 Status: v1 IN, 2026-10-20 — `core` (the model, the journal, the effects and handlers, the scenario, the agent's face with
-consent by elicitation) and `app` (the terminal, the Swing window, MCP over stdio); the whole application tested under okay-face's test face by scripts on the machine and
+consent by elicitation) and `app` (the terminal, the Swing window, MCP over stdio); the whole application tested under okay-faces' test face by scripts on the machine and
 on Free. What this spec says of v1 holds, with the deviations noted inline as DONE/CHANGED. Open source, Apache-2.0.
 
 ## Overview
@@ -13,7 +13,7 @@ countries. Verity keeps them once, in one file that can be backed up and carried
 person who copies them into a form or to an agent that fills the form for them — each under the owner's control.
 
 A structured notebook, then, with the structure extensible, every value versioned, one file, and a policy on who sees
-what. It is the test of okay-face's thesis: one program of the application, two faces at least (the terminal and MCP),
+what. It is the test of okay-faces' thesis: one program of the application, two faces at least (the terminal and MCP),
 and the second role too (the domain served to an agent directly), with the person's consent as a separate channel.
 
 ## The data model
@@ -27,7 +27,7 @@ final case class KindId(value: String)                       // `person-name`, `
 final case class Kind(
   id: KindId,
   name: String,                                                // for a person: "Passport"
-  schema: Schema,                                              // okay-face's erased Shape: the fields
+  schema: Schema,                                              // okay-faces' erased Shape: the fields
   secret: Set[String],                                         // field names never shown unless revealed
   summary: List[String],                                       // fields that identify a record in a list ("country, number…" masked)
   contextual: Boolean)                                         // records carry a language/country context
@@ -95,7 +95,7 @@ Nothing in the model changes for them.
 CHANGED in code: the effect of the vault is `Store` (a `Vault` is the folded state); ids and the clock are given to
 its handler, so a test is deterministic; `Reveal`'s policy is its handler (`policy(audience)`), performing `Store` and
 `Consent` in the row outside; the owner's consent at their own face is `askingTheOwner(faces)`, a `confirm` of `Face`;
-`Navigation[Place]` (okay-face core) names where the program is, for a window's title.
+`Navigation[Place]` (okay-faces core) names where the program is, for a window's title.
 
 ```scala
 sealed trait Vault[X]      // Kinds, Find(query), Get(id), History(id), Define(kind), Add(record), Revise(record), Retire(id, reason)
@@ -139,7 +139,7 @@ Back is the face's. `quit` is the program's.
 - `face-test`: every scenario path above as a script, the views golden.
 - `face-term`: `verity [file]`; the default file `~/.verity/verity.jsonl`.
 - `face-mcp`: `verity mcp [file]`. The dialogue projection: the agent sees the same screens and actions as the person.
-  The domain projection (after okay-face's step 5): `verity_find`, `verity_get`, `verity_history` as tools over
+  The domain projection (after okay-faces' step 5): `verity_find`, `verity_get`, `verity_history` as tools over
   `Describe[Vault]`; `Reveal` under the MCP policy, so a secret reaches the agent only after the owner's consent, each
   time, and each time written to the journal.
 
@@ -161,13 +161,13 @@ In order of what stresses the design most:
    here a small JVM implementation or BouncyCastle as the first dependency — decide then), the key held by an effect
    `Crypto` so an OS keychain can replace the passphrase.
 3. Attachments.
-4. A web face through okay-face's okay-ui bridge or Laminar.
+4. A web face through okay-faces' okay-ui bridge or Laminar.
 
 ## Build
 
 sbt, Scala 3.3 LTS and 2.13 (the application compiles on both, as the library does, to keep the library honest);
-depends on okay-face `publishLocal` until okay-face is released to the okay-effects Pages repository; JVM first,
-Native when okay-face's `face-term` and `face-mcp` are. One executable `verity` (`sbt stage` or a launcher script).
+depends on okay-faces `publishLocal` until okay-faces is released to the okay-effects Pages repository; JVM first,
+Native when okay-faces' `face-term` and `face-mcp` are. One executable `verity` (`sbt stage` or a launcher script).
 
 ## Tests
 
