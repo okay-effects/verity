@@ -32,7 +32,8 @@ class Agents[F <: Runner](val faces: Faces[F]) {
   }
 
   /** the server: the dialogue's steps over the link's row */
-  def server[A, R[_]](first: Step[A, ({ type L[X] = X ! R })#L] ! R): face.servers.Server[R] =
+  def server[A, R[_]](first: Step[A, ({ type L[X] = X ! R })#L] ! R, elicitation: Boolean = true, singleTool: Boolean = false): face.servers.Server[R] =
     face.server[A, R]("verity", "0.1", first, Some("Verity keeps the owner's personal details: names, addresses, passports, identifiers. " +
-      "You see the owner's own screens as tools. A secret field reaches you only with the owner's consent, asked each time, and every reveal is written down."), elicitation = true)
+      "You see the owner's own screens as tools. A secret field reaches you only with the owner's consent, asked each time, and every reveal is written down." +
+      (if (elicitation) "" else " Over this transport no consent can be asked, so no secret is shown.")), elicitation = elicitation, singleTool = singleTool)
 }

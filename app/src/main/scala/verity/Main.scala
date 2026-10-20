@@ -83,6 +83,12 @@ object Main {
       faces.dialogue[Unit, L](faces.steps[Unit, HF, L](program))
     }
     val sessions = okay.face.rest.RestFace(faces).sessions[Unit, L](() => session()).service
+    // MCP over HTTP at /mcp: an agent's session, its own dialogue, no consent to ask over this transport so no secret shown
+    val mcp = agents.face.http.service[L](() => {
+      val pages = new Pages[app.Place](app.Main)
+      val program = storage(consenting(Nil)(policy(Audience.Agent("mcp-http"))(clipboardTo(SystemClipboard.put)(storage.onDisk(app.navs.memory(pages)(app.run[HAll](storage.journal)))))))
+      agents.server[Unit, L](faces.steps[Unit, HF, L](program), elicitation = false, singleTool = true)
+    }, "/mcp").service
     // `browser`: the dialogue runs in the page; the server is the storage and the file, as REST domains
     type LS[X] = Sum[L, Store, X]
     type LFi[X] = Sum[L, Files, X]
@@ -102,10 +108,10 @@ object Main {
         if (req.path.startsWith("/store")) storage(storeServed.service(req))
         else if (req.path.startsWith("/files")) storage.onDisk(filesServed.service(req))
         else pure[okay.http.Response, L](okay.http.Response.notFound(req.path)))
-      case _ => sessions
+      case _ => req => if (req.path == "/mcp") mcp(req) else sessions(req)
     }
     val server = JdkServer.start(port)
-    System.err.println(s"verity $mode at http://127.0.0.1:${server.port}/" + (if (mode == "api") "sessions (POST to open one)" else "") + s", on ${storage.where}")
+    System.err.println(s"verity $mode at http://127.0.0.1:${server.port}/" + (if (mode == "api") "sessions (POST to open one), /mcp for an agent" else "") + s", on ${storage.where}")
     if (mode == "app" || mode == "browser") Shell.script.left.foreach(System.err.println)
     Machine.run(jdk.jdk(server)(https.serve[L](service)))
   }
