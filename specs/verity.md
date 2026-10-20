@@ -1,7 +1,8 @@
 # verity — the one who remembers your details exactly
 
-Status: specification, 2026-10-20. No code yet. The first application of okay-face (specs/face-core.md there); open
-source, Apache-2.0.
+Status: v1 IN, 2026-10-20 — `core` (the model, the journal, the effects and handlers, the scenario) and `app` (the
+terminal and the Swing window); the whole application tested under okay-face's test face by scripts on the machine and
+on Free. What this spec says of v1 holds, with the deviations noted inline as DONE/CHANGED. Open source, Apache-2.0.
 
 ## Overview
 
@@ -90,6 +91,11 @@ Attachments (scans) later: an event with the file's hash, the bytes beside the f
 Nothing in the model changes for them.
 
 ## The domain effects
+
+CHANGED in code: the effect of the vault is `Store` (a `Vault` is the folded state); ids and the clock are given to
+its handler, so a test is deterministic; `Reveal`'s policy is its handler (`policy(audience)`), performing `Store` and
+`Consent` in the row outside; the owner's consent at their own face is `askingTheOwner(faces)`, a `confirm` of `Face`;
+`Navigation[Place]` (okay-face core) names where the program is, for a window's title.
 
 ```scala
 sealed trait Vault[X]      // Kinds, Find(query), Get(id), History(id), Define(kind), Add(record), Revise(record), Retire(id, reason)
