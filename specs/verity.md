@@ -169,6 +169,10 @@ In order of what stresses the design most:
    record's `meta` (`Extra`), `contextual` in a kind's `meta` (`Kinds`), its built-in kinds, and `Vault` as a name for
    `Kept` with those kinds. `Event.Revealed` is `Event.Accessed(id, field, by, at)`; the journal's header is
    `{"format":"verity","version":1,...}`.
+8. The store on SQLite (2026-10-20): a `.db` file in any mode is okay-store's `jdbc` handler instead of `keeping` over
+   the journal file; `Main.Storage` is the one store per process, shared by every session, and the dialogue's Save
+   writes `<db>.jsonl` beside it as the journal's backup. The dialogue does not know which; the results of every mode
+   are `Unit` now, the vault no longer threaded through them.
 7. The other cut (2026-10-20): `verity browser` — the dialogue in the browser (`web/Local`, the same `Verity` scenario
    under Laminar, the owner asked at this face, the clipboard the browser's), `Store` and `Files` performed over REST
    against the server's `/store` and `/files` (`RestDomains.serve` under the vault kept between requests and the one

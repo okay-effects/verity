@@ -58,6 +58,7 @@ lazy val app = (project in file("app")).dependsOn(core.jvm).settings(crossBuilt,
   // its own JVM, with the terminal's input: `sbt app/run` reads what is typed, or piped
   fork := true, run / connectInput := true,
   libraryDependencies ++= Seq(
+    "io.github.okay-effects" %% "okay-store-jdbc" % okayStore,
     "io.github.okay-effects" %% "okay-faces-term" % okayFaces,
     "io.github.okay-effects" %% "okay-faces-swing" % okayFaces,
     "io.github.okay-effects" %% "okay-effects-machine" % okayEffects))

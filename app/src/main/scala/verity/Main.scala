@@ -7,13 +7,16 @@ import okay.face.{Face, Faces, Look, Paint, Pages}
 import okay.face.term.Ansi
 import okay.face.swing.SwingFace
 import okay.face.term.Terminal
+import okay.store.jdbc.{Jdbcs, Sqlite}
 
-/** `verity [file]` at the terminal; `verity swing [file]` in a window; `verity mcp` for an agent; `verity web`, `app`, `api`
- * on a port: pages from the server, a page over REST, the JSON API. The default file: ~/.verity/verity.jsonl */
+/** `verity [file]` at the terminal; `verity swing [file]` in a window; `verity mcp` for an agent; `verity web`, `app`,
+ * `browser`, `api` on a port: pages from the server, a page over REST, the dialogue in the page, the JSON API. The file
+ * is the journal, ~/.verity/verity.jsonl by default; a `.db` file is a SQLite database instead (`Storage`) */
 object Main {
   val faces: Faces[Machine.type] = new Faces[Machine.type]()(Machine)
   val agents = new Agents[Machine.type](faces)
   val app = new Verity[Machine.type](faces)
+  val jdbcs: Jdbcs[Machine.type] = new Jdbcs[Machine.type]()(Machine)
   import app.domain._
   import Machine._
 
@@ -28,18 +31,35 @@ object Main {
 
   def defaultPath: String = sys.props.get("user.home").map(_ + "/.verity/verity.jsonl").getOrElse("verity.jsonl")
 
-  /** the application wired with the world's handlers: the disk, the clipboard, the owner asked at the face; `Face` and
-   * `Console` left for the face chosen */
-  def wired(path: String, pages: Pages[app.Place]): (Vault, Unit) ! CF = {
-    implicit val needs: app.Needs[All] = app.Needs[All]
-    val initial = Disk.read(path).map(Journal.read).map { case (_, events, _) => Vault.of(events) }.getOrElse(Vault.empty)
-    val ids = () => java.util.UUID.randomUUID().toString
-    val now = () => System.currentTimeMillis()
-    store(initial, ids, now)(askingTheOwner(faces)(policy(Audience.Owner)(clipboardTo(SystemClipboard.put)(filesOn(Disk.read, Disk.write)(app.navs.memory(pages)(app.run[All](path)))))))
+  /** WHERE THE STORE IS: the journal file folded in memory (`keeping`), or a SQLite database when the file is a `.db`
+   * (okay-store's `jdbc`). One per process, shared by every session; the dialogue is the same either way. `journal` is
+   * the file the dialogue's Save writes: the file itself, or `<db>.jsonl` beside the database as its backup */
+  final class Storage(file: String) {
+    val onDatabase: Boolean = file.endsWith(".db")
+    val journal: String = if (onDatabase) file + ".jsonl" else file
+    private val connection = if (onDatabase) Some(Sqlite.open(file, Kinds.builtIn)) else None
+    @volatile var vault: Vault = if (onDatabase) Vault.empty else Disk.read(file).map(Journal.read).map { case (_, events, _) => Vault.of(events) }.getOrElse(Vault.empty)
+    val ids: () => String = () => java.util.UUID.randomUUID().toString
+    val now: () => Long = () => System.currentTimeMillis()
+    def apply[R[_], Rest[_], A](p: A ! R)(implicit sp: Split[Store, R, Rest]): A ! Rest = connection match {
+      case Some(c) => jdbcs.on(c, ids, now)(p)
+      case None => store(vault, ids, now)(p).map { case (v, a) => vault = v; a }
+    }
+    /** the file's handler: the journal, whichever file the dialogue names */
+    def onDisk: FilesOn = filesOn(_ => Disk.read(journal), (_, lines) => Disk.write(journal, lines))
+    def where: String = if (onDatabase) s"$file (SQLite), the journal's backup $journal" else file
   }
 
-  /** the owner in a browser (`web`: pages from the server; `app`: one page, okay-faces' remote face over REST) or a program
-   * over a JSON API (`api`): one JDK server, the dialogue a session per visitor */
+  /** the application wired with the world's handlers: the storage, the disk, the clipboard, the owner asked at the face;
+   * `Face` and `Console` left for the face chosen */
+  def wired(storage: Storage, pages: Pages[app.Place]): Unit ! CF = {
+    implicit val needs: app.Needs[All] = app.Needs[All]
+    storage(askingTheOwner(faces)(policy(Audience.Owner)(clipboardTo(SystemClipboard.put)(storage.onDisk(app.navs.memory(pages)(app.run[All](storage.journal)))))))
+  }
+
+  /** the owner in a browser (`web`: pages from the server; `app`: one page, okay-faces' remote face over REST; `browser`:
+   * the dialogue in the page, the store and the file served) or a program over a JSON API (`api`): one JDK server, one
+   * storage, the dialogue a session per visitor */
   def served(mode: String, port: Int, path: String): Unit = {
     import okay.http.{Http, Https, JdkHttp, JdkServer}
     type L[X] = Sum[Void, Http, X]
@@ -53,41 +73,39 @@ object Main {
     implicit val needs: app.Needs[HAll] = app.Needs[HAll]
     val https = new Https[Machine.type]()(Machine)
     val jdk = new JdkHttp[Machine.type]()(Machine)
-    def session(): faces.Dialogue[(Vault, Unit), L] = {
-      // each visitor: the file as it stands, the owner at their own face (web) or a program with no consent (api)
-      val initial = Disk.read(path).map(Journal.read).map { case (_, events, _) => Vault.of(events) }.getOrElse(Vault.empty)
+    val storage = new Storage(path)
+    def session(): faces.Dialogue[Unit, L] = {
+      // each visitor: the one storage, the owner at their own face (web, app) or a program with no consent (api)
       val pages = new Pages[app.Place](app.Main)
-      val inner = clipboardTo(SystemClipboard.put)(filesOn(Disk.read, Disk.write)(app.navs.memory(pages)(app.run[HAll](path))))
-      val program = if (mode != "api") store(initial, () => java.util.UUID.randomUUID().toString, () => System.currentTimeMillis())(askingTheOwner(faces)(policy(Audience.Owner)(inner)))
-                    else store(initial, () => java.util.UUID.randomUUID().toString, () => System.currentTimeMillis())(consenting(Nil)(policy(Audience.Agent("api"))(inner)))
-      faces.dialogue[(Vault, Unit), L](faces.steps[(Vault, Unit), HF, L](program))
+      val inner = clipboardTo(SystemClipboard.put)(storage.onDisk(app.navs.memory(pages)(app.run[HAll](storage.journal))))
+      val program = if (mode != "api") storage(askingTheOwner(faces)(policy(Audience.Owner)(inner)))
+                    else storage(consenting(Nil)(policy(Audience.Agent("api"))(inner)))
+      faces.dialogue[Unit, L](faces.steps[Unit, HF, L](program))
     }
-    val sessions = okay.face.rest.RestFace(faces).sessions[(Vault, Unit), L](() => session()).service
-    // `browser`: the dialogue runs in the page; the server is the store (kept between requests) and the file, as REST domains
+    val sessions = okay.face.rest.RestFace(faces).sessions[Unit, L](() => session()).service
+    // `browser`: the dialogue runs in the page; the server is the storage and the file, as REST domains
     type LS[X] = Sum[L, Store, X]
     type LFi[X] = Sum[L, Files, X]
     val domains = new okay.face.rest.RestDomains[Machine.type]()(Machine)
     val storeServed = domains.serve[Store, LS](okay.store.Stores.describe, "/store")
     val filesServed = domains.serve[Files, LFi](Describes.files, "/files")
-    var vault: Vault = Disk.read(path).map(Journal.read).map { case (_, events, _) => Vault.of(events) }.getOrElse(Vault.empty)
-    val files = filesOn(_ => Disk.read(path), (_, lines) => Disk.write(path, lines))   // the page names a file; the server's is this one
     def pages(req: okay.http.Request): Option[okay.http.Response ! L] = (req.method, req.path) match {
-      case ("GET", "/") => Some(pure[okay.http.Response, L](okay.http.Response.html(Shell.page("Verity", if (mode == "app") "remote" else "local", new java.io.File(path).getName))))
+      case ("GET", "/") => Some(pure[okay.http.Response, L](okay.http.Response.html(Shell.page("Verity", if (mode == "app") "remote" else "local", new java.io.File(storage.journal).getName))))
       case ("GET", "/okay.css") => Some(pure[okay.http.Response, L](okay.http.Response.ok(okay.face.Css(Look.default), "text/css; charset=utf-8")))
       case ("GET", "/app.js") => Some(pure[okay.http.Response, L](Shell.script.fold(e => okay.http.Response.text(e, 503), js => okay.http.Response.ok(js, "application/javascript; charset=utf-8"))))
       case _ => None
     }
     val service: okay.http.Request => okay.http.Response ! L = mode match {
-      case "web" => okay.face.html.HtmlFace(faces).pages[(Vault, Unit), L](() => session(), "Verity").service
+      case "web" => okay.face.html.HtmlFace(faces).pages[Unit, L](() => session(), "Verity").service
       case "app" => req => pages(req).getOrElse(sessions(req))
       case "browser" => req => pages(req).getOrElse(
-        if (req.path.startsWith("/store")) store(vault, () => java.util.UUID.randomUUID().toString, () => System.currentTimeMillis())(storeServed.service(req)).map { case (v, r) => vault = v; r }
-        else if (req.path.startsWith("/files")) files(filesServed.service(req))
+        if (req.path.startsWith("/store")) storage(storeServed.service(req))
+        else if (req.path.startsWith("/files")) storage.onDisk(filesServed.service(req))
         else pure[okay.http.Response, L](okay.http.Response.notFound(req.path)))
       case _ => sessions
     }
     val server = JdkServer.start(port)
-    System.err.println(s"verity $mode at http://127.0.0.1:${server.port}/" + (if (mode == "api") "sessions (POST to open one)" else ""))
+    System.err.println(s"verity $mode at http://127.0.0.1:${server.port}/" + (if (mode == "api") "sessions (POST to open one)" else "") + s", on ${storage.where}")
     if (mode == "app" || mode == "browser") Shell.script.left.foreach(System.err.println)
     Machine.run(jdk.jdk(server)(https.serve[L](service)))
   }
@@ -98,7 +116,7 @@ object Main {
       served(args.head, port, file)
     case "mcp" :: rest =>
       // for an agent over stdio: the audience an agent, the owner's consent asked through the client
-      val path = rest.headOption.getOrElse(defaultPath)
+      val storage = new Storage(rest.headOption.getOrElse(defaultPath))
       type L[X] = Sum[Void, okay.mcp.Link, X]
       type ALF[X] = Sum[L, Face, X]
       type AN[X] = Sum[ALF, app.Nav, X]
@@ -108,26 +126,24 @@ object Main {
       type ANFCRC[X] = Sum[ANFCR, Consent, X]
       type AAll[X] = Sum[ANFCRC, Store, X]
       implicit val needs: app.Needs[AAll] = app.Needs[AAll]
-      val initial = Disk.read(path).map(Journal.read).map { case (_, events, _) => Vault.of(events) }.getOrElse(Vault.empty)
       val pages = new Pages[app.Place](app.Main)
-      val program = store(initial, () => java.util.UUID.randomUUID().toString, () => System.currentTimeMillis())(
-        agents.consentByElicitation(policy(Audience.Agent("mcp"))(clipboardTo(SystemClipboard.put)(filesOn(Disk.read, Disk.write)(app.navs.memory(pages)(app.run[AAll](path)))))))
-      Machine.run(agents.face.servers.links.stdio(agents.face.servers.serve[L](agents.server[(Vault, Unit), L](faces.steps[(Vault, Unit), ALF, L](program)))))
+      val program = storage(agents.consentByElicitation(policy(Audience.Agent("mcp"))(clipboardTo(SystemClipboard.put)(storage.onDisk(app.navs.memory(pages)(app.run[AAll](storage.journal)))))))
+      Machine.run(agents.face.servers.links.stdio(agents.face.servers.serve[L](agents.server[Unit, L](faces.steps[Unit, ALF, L](program)))))
     case "swing" :: rest =>
-      val path = rest.headOption.getOrElse(defaultPath)
+      val storage = new Storage(rest.headOption.getOrElse(defaultPath))
       val pages = new Pages[app.Place](app.Main)
       val face = new SwingFace[Machine.type](faces)
       // Console is in the row for the terminal's sake; a window has none: the real console still answers it
       val io = new okay.effects.world.Io[Machine.type]()(Machine)
-      face.window("Verity", faces.steps[(Vault, Unit), CF, C](wired(path, pages)).asInstanceOf[okay.face.Step[(Vault, Unit), ({ type L[X] = X ! Void })#L] ! Void],
-        (_: (Vault, Unit)) => sys.exit(0), pages = Some((pages, (p: Any) => p.toString)), look = Some(Look.default))
+      face.window("Verity", faces.steps[Unit, CF, C](wired(storage, pages)).asInstanceOf[okay.face.Step[Unit, ({ type L[X] = X ! Void })#L] ! Void],
+        (_: Unit) => sys.exit(0), pages = Some((pages, (p: Any) => p.toString)), look = Some(Look.default))
     case rest =>
-      val path = rest.headOption.getOrElse(defaultPath)
+      val storage = new Storage(rest.headOption.getOrElse(defaultPath))
       val pages = new Pages[app.Place](app.Main)
       // colour at a terminal, plain in a pipe: the look is the same, the paint is the console's
       val term = new Terminal[Machine.type](faces, if (System.console() != null) Ansi(Look.default) else Paint.none)
       pages.onChange(p => ())   // a terminal could print the place; the main screen says enough
-      val result = Machine.run(term.io.realConsole(term.terminal[(Vault, Unit), C](faces.steps[(Vault, Unit), CF, C](wired(path, pages)))))
+      val result = Machine.run(term.io.realConsole(term.terminal[Unit, C](faces.steps[Unit, CF, C](wired(storage, pages)))))
       println(result.fold("bye")(_ => "bye"))
   }
 }
