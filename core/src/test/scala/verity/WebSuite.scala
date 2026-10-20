@@ -42,7 +42,7 @@ class WebSuite extends munit.FunSuite {
     assertEquals(rs.map(_.status), List(303, 200, 303, 303, 303, 303, 200, 303, 200))
     assert(rs(1).body.contains("Nothing kept yet") && rs(1).body.contains("""value="add""""), rs(1).body)
     assert(rs(6).body.contains("•••• 3456") && !rs(6).body.contains("AB123456"), rs(6).body)
-    assert(rs(8).body.contains("<dt>Number</dt>") && rs(8).body.contains("•••• 3456") && rs(8).body.contains("/s/s1/act/copy"), rs(8).body)
+    assert(rs(8).body.contains("""<dt class="okay-label">Number</dt>""") && rs(8).body.contains("•••• 3456") && rs(8).body.contains("/s/s1/act/copy"), rs(8).body)
   }
   test("as an API: a session's resource with the actions as links; the add through links") {
     val rest = okay.face.rest.RestFace(faces)

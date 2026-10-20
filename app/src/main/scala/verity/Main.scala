@@ -3,7 +3,8 @@ package verity
 import okay.effects.{Sum, Void}
 import okay.effects.machine.Machine
 import okay.effects.world.Console
-import okay.face.{Face, Faces, Pages}
+import okay.face.{Face, Faces, Look, Paint, Pages}
+import okay.face.term.Ansi
 import okay.face.swing.SwingFace
 import okay.face.term.Terminal
 
@@ -95,11 +96,12 @@ object Main {
       // Console is in the row for the terminal's sake; a window has none: the real console still answers it
       val io = new okay.effects.world.Io[Machine.type]()(Machine)
       face.window("Verity", faces.steps[(Vault, Unit), CF, C](wired(path, pages)).asInstanceOf[okay.face.Step[(Vault, Unit), ({ type L[X] = X ! Void })#L] ! Void],
-        (_: (Vault, Unit)) => sys.exit(0), pages = Some((pages, (p: Any) => p.toString)))
+        (_: (Vault, Unit)) => sys.exit(0), pages = Some((pages, (p: Any) => p.toString)), look = Some(Look.default))
     case rest =>
       val path = rest.headOption.getOrElse(defaultPath)
       val pages = new Pages[app.Place](app.Main)
-      val term = new Terminal[Machine.type](faces)
+      // colour at a terminal, plain in a pipe: the look is the same, the paint is the console's
+      val term = new Terminal[Machine.type](faces, if (System.console() != null) Ansi(Look.default) else Paint.none)
       pages.onChange(p => ())   // a terminal could print the place; the main screen says enough
       val result = Machine.run(term.io.realConsole(term.terminal[(Vault, Unit), C](faces.steps[(Vault, Unit), CF, C](wired(path, pages)))))
       println(result.fold("bye")(_ => "bye"))
