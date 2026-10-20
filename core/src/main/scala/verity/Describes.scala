@@ -2,7 +2,7 @@ package verity
 
 import okay.effects.shape.Shape
 import okay.effects.shape.Shape.{field, record, text, unit}
-import okay.face.{Call, Describe, Op}
+import okay.effects.describe.{Call, Describe, Op}
 
 /** VERITY'S OWN EFFECTS DESCRIBED (the store's description is okay-store's): `Files`, so a page performs them and the
  * server's disk answers. A result that may fail crosses as `{lines}` or `{error}` */
