@@ -1,4 +1,4 @@
-/** verity: Scala 3.3 LTS and 2.13, as okay-faces and okay-simple; the JVM; Scala.js when the web face comes */
+/** verity: Scala 3.3 LTS and 2.13, as okay-faces and okay-simple; the JVM, and Scala.js for the page of `verity app` */
 val scala3 = "3.3.8"
 val scala2 = "2.13.18"
 
@@ -10,6 +10,7 @@ ThisBuild / resolvers += "okay-effects" at "https://okay-effects.github.io/okay-
 /** okay-simple's and okay-faces' snapshots, published locally until released */
 val okayEffects = "0.1.1-SNAPSHOT"
 val okayFaces = "0.1.0-SNAPSHOT"
+val okayHttp = "0.1.0-SNAPSHOT"
 
 def crossBuilt: Seq[Def.Setting[?]] = Seq(
   crossScalaVersions := Seq(scala3, scala2),
@@ -33,7 +34,15 @@ lazy val core = (project in file("core")).settings(crossBuilt, name := "verity-c
     "io.github.okay-effects" %% "okay-effects-machine" % okayEffects % Test,
     "io.github.okay-effects" %% "okay-effects-free" % okayEffects % Test))
 
-/** THE FACES: `verity [file]` at the terminal, `verity swing [file]` in a window, `verity mcp [file]` for an agent, `verity web [port] [file]` in a browser, `verity api [port] [file]` as a JSON API */
+/** THE PAGE of `verity app`: not a line of verity's own — okay-faces' remote face over the REST face, linked by `sbt web/fullLinkJS` */
+lazy val web = (project in file("web")).enablePlugins(ScalaJSPlugin).settings(crossBuilt, name := "verity-web", publish / skip := true,
+  scalaJSUseMainModuleInitializer := true,
+  libraryDependencies ++= Seq(
+    "io.github.okay-effects" %%% "okay-faces-laminar" % okayFaces,
+    "io.github.okay-effects" %%% "okay-http" % okayHttp,
+    "com.raquo" %%% "laminar" % "17.2.1"))
+
+/** THE FACES: `verity [file]` at the terminal, `verity swing [file]` in a window, `verity mcp [file]` for an agent, `verity web [port] [file]` in a browser as pages, `verity app [port] [file]` as a page over REST, `verity api [port] [file]` as a JSON API */
 lazy val app = (project in file("app")).dependsOn(core).settings(crossBuilt, name := "verity",
   // its own JVM, with the terminal's input: `sbt app/run` reads what is typed, or piped
   fork := true, run / connectInput := true,
@@ -42,4 +51,4 @@ lazy val app = (project in file("app")).dependsOn(core).settings(crossBuilt, nam
     "io.github.okay-effects" %% "okay-faces-swing" % okayFaces,
     "io.github.okay-effects" %% "okay-effects-machine" % okayEffects))
 
-lazy val root = (project in file(".")).aggregate(core, app).settings(name := "verity-root", publish / skip := true)
+lazy val root = (project in file(".")).aggregate(core, app, web).settings(name := "verity-root", publish / skip := true)

@@ -161,7 +161,7 @@ In order of what stresses the design most:
    here a small JVM implementation or BouncyCastle as the first dependency — decide then), the key held by an effect
    `Crypto` so an OS keychain can replace the passphrase.
 3. Attachments.
-4. A web face through okay-faces' okay-ui bridge or Laminar.
+4. ~~A web face through okay-faces' okay-ui bridge or Laminar.~~ Done as `verity app`: okay-faces' remote face (Laminar) over the REST face, the page knowing nothing of verity; `web/` is the linked script.
 
 ## Build
 

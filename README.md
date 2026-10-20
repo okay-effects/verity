@@ -11,6 +11,7 @@ sbt "app/run swing my.jsonl"  # in a window
 sbt "app/run mcp my.jsonl"    # for an agent, MCP over stdio: the same screens as tools, a secret only with your consent
 sbt "app/run web 8080 my.jsonl"  # in a browser, pages from the server, no script: http://127.0.0.1:8080/
 sbt "app/run api 8081 my.jsonl"  # as a JSON API with links: POST /sessions, then follow the links
+sbt web/fullLinkJS && sbt "app/run app 8082 my.jsonl"  # one page over the API: okay-faces' remote face, not a line of verity's in the browser
 ```
 
 ## What it is, in one paragraph
