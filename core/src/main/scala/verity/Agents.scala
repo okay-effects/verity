@@ -8,11 +8,9 @@ import okay.mcp.Link
 
 /** VERITY FOR AN AGENT: the same dialogue, served over MCP — the agent sees what a person would, as tools. The audience
  * is an agent, so the policy over `Reveal` asks the OWNER through the client: `Consent` by elicitation */
-class Agents[F <: Runner](faces0: Faces[F]) {
-  val face: McpFace[F] = new McpFace[F](faces0)
-  /** THE faces: the MCP face's own, so every path — the server's, the domain's — is one `fx` */
-  val faces: face.faces.type = face.faces
+class Agents[F <: Runner](val faces: Faces[F]) {
   import faces.fx._
+  val face: McpFace[F, faces.type] = McpFace(faces)
   val domain: Domain[faces.fx.type] = new Domain[faces.fx.type]()(faces.fx)
 
   /** the owner's consent asked through the client (`elicitation/create`): a yes or no with the record and the field named */

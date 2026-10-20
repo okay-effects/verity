@@ -9,8 +9,8 @@ import okay.face.term.Terminal
 
 /** `verity [file]` at the terminal; `verity swing [file]` in a window. The default file: ~/.verity/verity.jsonl */
 object Main {
-  val agents = new Agents[Machine.type](new Faces[Machine.type]()(Machine))
-  val faces: agents.faces.type = agents.faces
+  val faces: Faces[Machine.type] = new Faces[Machine.type]()(Machine)
+  val agents = new Agents[Machine.type](faces)
   val app = new Verity[Machine.type](faces)
   import app.domain._
   import Machine._
@@ -36,7 +36,41 @@ object Main {
     store(initial, ids, now)(askingTheOwner(faces)(policy(Audience.Owner)(clipboardSystem(filesOnDisk(app.navs.memory(pages)(app.run[All](path)))))))
   }
 
+  /** the owner in a browser (`web`) or a program over a JSON API (`api`): one JDK server, the dialogue a session per visitor */
+  def served(mode: String, port: Int, path: String): Unit = {
+    import okay.http.{Http, Https, JdkHttp, JdkServer}
+    type L[X] = Sum[Void, Http, X]
+    type HF[X] = Sum[L, Face, X]
+    type HN[X] = Sum[HF, app.Nav, X]
+    type HNF[X] = Sum[HN, Files, X]
+    type HNFC[X] = Sum[HNF, Clipboard, X]
+    type HNFCR[X] = Sum[HNFC, Reveal, X]
+    type HNFCRC[X] = Sum[HNFCR, Consent, X]
+    type HAll[X] = Sum[HNFCRC, Store, X]
+    implicit val needs: app.Needs[HAll] = app.Needs[HAll]
+    val https = new Https[Machine.type]()(Machine)
+    val jdk = new JdkHttp[Machine.type]()(Machine)
+    def session(): faces.Dialogue[(Vault, Unit), L] = {
+      // each visitor: the file as it stands, the owner at their own face (web) or a program with no consent (api)
+      val initial = Disk.read(path).map(Journal.read).map { case (_, events, _) => Vault.of(events) }.getOrElse(Vault.empty)
+      val pages = new Pages[app.Place](app.Main)
+      val inner = clipboardSystem(filesOnDisk(app.navs.memory(pages)(app.run[HAll](path))))
+      val program = if (mode == "web") store(initial, () => java.util.UUID.randomUUID().toString, () => System.currentTimeMillis())(askingTheOwner(faces)(policy(Audience.Owner)(inner)))
+                    else store(initial, () => java.util.UUID.randomUUID().toString, () => System.currentTimeMillis())(consenting(Nil)(policy(Audience.Agent("api"))(inner)))
+      faces.dialogue[(Vault, Unit), L](faces.steps[(Vault, Unit), HF, L](program))
+    }
+    val service: okay.http.Request => okay.http.Response ! L =
+      if (mode == "web") okay.face.html.HtmlFace(faces).pages[(Vault, Unit), L](() => session(), "Verity").service
+      else okay.face.rest.RestFace(faces).sessions[(Vault, Unit), L](() => session()).service
+    val server = JdkServer.start(port)
+    System.err.println(s"verity $mode at http://127.0.0.1:${server.port}/" + (if (mode == "api") "sessions (POST to open one)" else ""))
+    Machine.run(jdk.jdk(server)(https.serve[L](service)))
+  }
+
   def main(args: Array[String]): Unit = args.toList match {
+    case ("web" | "api") :: rest =>
+      val (port, file) = rest match { case p :: f :: _ if p.forall(_.isDigit) => (p.toInt, f); case p :: Nil if p.forall(_.isDigit) => (p.toInt, defaultPath); case f :: _ => (8080, f); case Nil => (8080, defaultPath) }
+      served(args.head, port, file)
     case "mcp" :: rest =>
       // for an agent over stdio: the audience an agent, the owner's consent asked through the client
       val path = rest.headOption.getOrElse(defaultPath)
