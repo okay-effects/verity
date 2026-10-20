@@ -161,6 +161,9 @@ In order of what stresses the design most:
    here a small JVM implementation or BouncyCastle as the first dependency — decide then), the key held by an effect
    `Crypto` so an OS keychain can replace the passphrase.
 3. Attachments.
+5. `Describes.store` (2026-10-20): the store described, served as REST resources and performed from afar; `RemoteStoreSuite`
+   shows one program answering the same by the vault and over REST. Not on the `api` port: a raw `Store` bypasses the
+   policy over `Reveal`; a masked subset for agents is its own description, later.
 4. ~~A web face through okay-faces' okay-ui bridge or Laminar.~~ Done as `verity app`: okay-faces' remote face (Laminar) over the REST face, the page knowing nothing of verity; `web/` is the linked script.
 
 ## Build
