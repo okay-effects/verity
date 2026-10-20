@@ -5,26 +5,8 @@ import okay.effects.json.Json
 import okay.face.View
 
 /** THE DOMAIN'S EFFECTS. The scenario is a program in `Face + Store + Reveal + Consent + Clipboard + Files`; each a
- * port, its handlers the adapters: in memory and pure for a test, the disk and the clipboard for the real thing */
-
-/** the vault: what is kept, asked and changed — the handler keeps the state and writes the journal */
-sealed trait Store[X]
-object Store {
-  final case class Kinds[X](answer: List[Kind] => X) extends Store[X]
-  final case class Find[X](text: String, tag: Option[String], answer: List[Record] => X) extends Store[X]
-  final case class Get[X](id: RecordId, answer: Option[Record] => X) extends Store[X]
-  final case class History[X](id: RecordId, answer: List[Record] => X) extends Store[X]
-  final case class Define[X](kind: Kind, answer: Unit => X) extends Store[X]
-  /** a record added: the id and the version are the handler's */
-  final case class Add[X](kind: KindId, fields: Json.Obj, context: Context, valid: Period, tags: Set[String], note: Option[String], answer: Record => X) extends Store[X]
-  /** a new version of a record */
-  final case class Revise[X](id: RecordId, fields: Json.Obj, context: Context, valid: Period, tags: Set[String], note: Option[String], answer: Option[Record] => X) extends Store[X]
-  final case class Retire[X](id: RecordId, reason: Option[String], answer: Unit => X) extends Store[X]
-  final case class Audit[X](id: RecordId, field: String, audience: String, answer: Unit => X) extends Store[X]
-  /** the journal as it stands, and how many events are unsaved */
-  final case class Journaled[X](answer: ((List[Event], Int)) => X) extends Store[X]
-  final case class Saved[X](answer: Unit => X) extends Store[X]
-}
+ * port, its handlers the adapters: in memory and pure for a test, the disk and the clipboard for the real thing. `Store`
+ * is okay-store's; the rest are verity's own */
 
 /** a secret in the clear — the ONLY way to one; a policy sits over it */
 sealed trait Reveal[X]
@@ -58,58 +40,27 @@ class Domain[F <: Effects](implicit implementation: F) {
   import fx._
 
   // ---- words
-  def kinds[R[_]](implicit in: In[Store, R]): List[Kind] ! R = perform[Store].apply[R, List[Kind]](Store.Kinds(x => x))
-  def find[R[_]](text: String, tag: Option[String] = None)(implicit in: In[Store, R]): List[Record] ! R = perform[Store].apply[R, List[Record]](Store.Find(text, tag, x => x))
-  def get[R[_]](id: RecordId)(implicit in: In[Store, R]): Option[Record] ! R = perform[Store].apply[R, Option[Record]](Store.Get(id, x => x))
-  def history[R[_]](id: RecordId)(implicit in: In[Store, R]): List[Record] ! R = perform[Store].apply[R, List[Record]](Store.History(id, x => x))
-  def define[R[_]](kind: Kind)(implicit in: In[Store, R]): Unit ! R = perform[Store].apply[R, Unit](Store.Define(kind, x => x))
-  def add[R[_]](kind: KindId, fields: Json.Obj, context: Context, valid: Period, tags: Set[String], note: Option[String])(implicit in: In[Store, R]): Record ! R =
-    perform[Store].apply[R, Record](Store.Add(kind, fields, context, valid, tags, note, x => x))
-  def revise[R[_]](id: RecordId, fields: Json.Obj, context: Context, valid: Period, tags: Set[String], note: Option[String])(implicit in: In[Store, R]): Option[Record] ! R =
-    perform[Store].apply[R, Option[Record]](Store.Revise(id, fields, context, valid, tags, note, x => x))
-  def retire[R[_]](id: RecordId, reason: Option[String])(implicit in: In[Store, R]): Unit ! R = perform[Store].apply[R, Unit](Store.Retire(id, reason, x => x))
-  def audit[R[_]](id: RecordId, field: String, audience: String)(implicit in: In[Store, R]): Unit ! R = perform[Store].apply[R, Unit](Store.Audit(id, field, audience, x => x))
-  def journaled[R[_]](implicit in: In[Store, R]): (List[Event], Int) ! R = perform[Store].apply[R, (List[Event], Int)](Store.Journaled(x => x))
-  def saved[R[_]](implicit in: In[Store, R]): Unit ! R = perform[Store].apply[R, Unit](Store.Saved(x => x))
+  /** the store: okay-store's words and handler, forwarded, so one `import domain._` serves the scenario */
+  val stores: okay.store.Stores[fx.type] = new okay.store.Stores[fx.type]()(fx)
+  def kinds[R[_]](implicit in: In[Store, R]): List[Kind] ! R = stores.kinds[R]
+  def find[R[_]](text: String, tag: Option[String] = None)(implicit in: In[Store, R]): List[Record] ! R = stores.find[R](text, tag)
+  def get[R[_]](id: RecordId)(implicit in: In[Store, R]): Option[Record] ! R = stores.get[R](id)
+  def history[R[_]](id: RecordId)(implicit in: In[Store, R]): List[Record] ! R = stores.history[R](id)
+  def define[R[_]](kind: Kind)(implicit in: In[Store, R]): Unit ! R = stores.define[R](kind)
+  def add[R[_]](kind: KindId, fields: Json.Obj, extra: Json.Obj, tags: Set[String], note: Option[String])(implicit in: In[Store, R]): Record ! R = stores.add[R](kind, fields, extra, tags, note)
+  def revise[R[_]](id: RecordId, fields: Json.Obj, extra: Json.Obj, tags: Set[String], note: Option[String])(implicit in: In[Store, R]): Option[Record] ! R = stores.revise[R](id, fields, extra, tags, note)
+  def retire[R[_]](id: RecordId, reason: Option[String])(implicit in: In[Store, R]): Unit ! R = stores.retire[R](id, reason)
+  def audit[R[_]](id: RecordId, field: String, audience: String)(implicit in: In[Store, R]): Unit ! R = stores.audit[R](id, field, audience)
+  def journaled[R[_]](implicit in: In[Store, R]): (List[Event], Int) ! R = stores.journaled[R]
+  def saved[R[_]](implicit in: In[Store, R]): Unit ! R = stores.saved[R]
   def reveal[R[_]](id: RecordId, field: String)(implicit in: In[Reveal, R]): Option[String] ! R = perform[Reveal].apply[R, Option[String]](Reveal.Show(id, field, x => x))
   def consent[R[_]](what: View)(implicit in: In[Consent, R]): Boolean ! R = perform[Consent].apply[R, Boolean](Consent.Ask(what, x => x))
   def copy[R[_]](text: String)(implicit in: In[Clipboard, R]): Unit ! R = perform[Clipboard].apply[R, Unit](Clipboard.Put(text, x => x))
   def open[R[_]](path: String)(implicit in: In[Files, R]): Either[String, List[String]] ! R = perform[Files].apply[R, Either[String, List[String]]](Files.Open(path, x => x))
   def save[R[_]](path: String, lines: List[String])(implicit in: In[Files, R]): Either[String, Unit] ! R = perform[Files].apply[R, Either[String, Unit]](Files.Save(path, lines, x => x))
 
-  // ---- THE STORE'S HANDLER: the vault in a cell, in place; ids and the clock given, so a test is deterministic
-  def store(initial: Vault, ids: () => String, now: () => Long): StoreHandler = new StoreHandler(initial, ids, now)
-  final class StoreHandler(initial: Vault, ids: () => String, now: () => Long) {
-    def apply[R[_], Rest[_], A](p: A ! R)(implicit sp: Split[Store, R, Rest]): (Vault, A) ! Rest =
-      handle[Store, Vault, R, Rest, A, (Vault, A)](p, initial, new StatefulTailHandler[Store, Vault, Rest, A, (Vault, A)] {
-        def ret(v: Vault, a: A) = pure((v, a))
-        def answer[X](cell: Cell[Vault], op: Store[X]): X = {
-          val v = cell.get
-          op match {
-            case Store.Kinds(answer) => answer(v.kinds.values.toList.sortBy(_.name))
-            case Store.Find(text, tag, answer) =>
-              val t = text.trim.toLowerCase
-              answer(v.records.filter(r => tag.forall(r.tags.contains) && (t.isEmpty || Json.print(r.fields).toLowerCase.contains(t) || r.tags.exists(_.toLowerCase.contains(t)) || r.note.exists(_.toLowerCase.contains(t)))))
-            case Store.Get(id, answer) => answer(v.current(id))
-            case Store.History(id, answer) => answer(v.history(id))
-            case Store.Define(kind, answer) => cell.set(v(if (v.kinds.contains(kind.id)) Event.KindRevised(kind, now()) else Event.KindDefined(kind, now()))); answer(())
-            case Store.Add(kind, fields, context, valid, tags, note, answer) =>
-              val r = Record(RecordId(ids()), VersionId(ids()), None, kind, fields, context, valid, tags, note, now())
-              cell.set(v(Event.RecordAdded(r))); answer(r)
-            case Store.Revise(id, fields, context, valid, tags, note, answer) => v.current(id) match {
-              case Some(old) =>
-                val r = old.copy(version = VersionId(ids()), parent = Some(old.version), fields = fields, context = context, valid = valid, tags = tags, note = note, at = now())
-                cell.set(v(Event.RecordRevised(r))); answer(Some(r))
-              case None => answer(None)
-            }
-            case Store.Retire(id, reason, answer) => cell.set(v(Event.RecordRetired(id, reason, now()))); answer(())
-            case Store.Audit(id, field, audience, answer) => cell.set(v(Event.Revealed(id, field, audience, now()))); answer(())
-            case Store.Journaled(answer) => answer((v.events, v.unsaved))
-            case Store.Saved(answer) => cell.set(v.saved); answer(())
-          }
-        }
-      })
-  }
+  /** the store's handler: okay-store's, in memory; ids and the clock given, so a test is deterministic */
+  def store(initial: Vault, ids: () => String, now: () => Long): stores.Keeping = stores.keeping(initial, ids, now)
 
   /** THE POLICY over `Reveal`: who is asking decides. The owner at their own face is shown. An agent is shown only with
    * the owner's consent, asked each time, and every showing is audited into the journal. The clause runs in the row
@@ -168,12 +119,13 @@ class Domain[F <: Effects](implicit implementation: F) {
         def answer[X](cell: Cell[List[String]], op: Clipboard[X]): X = op match { case Clipboard.Put(t, answer) => cell.set(t :: cell.get); answer(()) }
       })
   }
-  def clipboardSystem: ClipboardSystem = new ClipboardSystem
-  final class ClipboardSystem {
+  /** the platform's clipboard, by its `put`: the JVM's (`SystemClipboard.put`), the browser's */
+  def clipboardTo(put: String => Unit): ClipboardTo = new ClipboardTo(put)
+  final class ClipboardTo(put: String => Unit) {
     def apply[R[_], Rest[_], A](p: A ! R)(implicit sp: Split[Clipboard, R, Rest]): A ! Rest =
       handle[Clipboard, R, Rest, A, A](p, new TailHandler[Clipboard, Rest, A, A] {
         def ret(a: A) = pure(a)
-        def answer[X](op: Clipboard[X]): X = op match { case Clipboard.Put(t, answer) => SystemClipboard.put(t); answer(()) }
+        def answer[X](op: Clipboard[X]): X = op match { case Clipboard.Put(t, answer) => put(t); answer(()) }
       })
   }
 
@@ -190,14 +142,15 @@ class Domain[F <: Effects](implicit implementation: F) {
           }
         })
   }
-  def filesOnDisk: FilesOnDisk = new FilesOnDisk
-  final class FilesOnDisk {
+  /** the platform's files, by its `read` and `write`: the disk's (`Disk.read`, `Disk.write`) */
+  def filesOn(read: String => Either[String, List[String]], write: (String, List[String]) => Either[String, Unit]): FilesOn = new FilesOn(read, write)
+  final class FilesOn(read: String => Either[String, List[String]], write: (String, List[String]) => Either[String, Unit]) {
     def apply[R[_], Rest[_], A](p: A ! R)(implicit sp: Split[Files, R, Rest]): A ! Rest =
       handle[Files, R, Rest, A, A](p, new TailHandler[Files, Rest, A, A] {
         def ret(a: A) = pure(a)
         def answer[X](op: Files[X]): X = op match {
-          case Files.Open(path, answer) => answer(Disk.read(path))
-          case Files.Save(path, lines, answer) => answer(Disk.write(path, lines))
+          case Files.Open(path, answer) => answer(read(path))
+          case Files.Save(path, lines, answer) => answer(write(path, lines))
         }
       })
   }
@@ -208,25 +161,4 @@ object Domain {
     implicit val exact: fx.type = fx
     new Domain[fx.type]
   }
-}
-
-/** the JVM's clipboard, where there is one; printed where there is not (headless) */
-object SystemClipboard {
-  def put(text: String): Unit =
-    try java.awt.Toolkit.getDefaultToolkit.getSystemClipboard.setContents(new java.awt.datatransfer.StringSelection(text), null)
-    catch { case _: Throwable => () }
-}
-
-object Disk {
-  import java.nio.file.{Files => NioFiles, Paths, StandardOpenOption}
-  import scala.jdk.CollectionConverters._
-  def read(path: String): Either[String, List[String]] = {
-    val p = Paths.get(path)
-    if (!NioFiles.exists(p)) Right(Nil)
-    else try Right(NioFiles.readAllLines(p).asScala.toList) catch { case e: Exception => Left(e.getMessage) }
-  }
-  def write(path: String, lines: List[String]): Either[String, Unit] = try {
-    val p = Paths.get(path); Option(p.getParent).foreach(d => NioFiles.createDirectories(d))
-    NioFiles.write(p, lines.asJava, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE); Right(())
-  } catch { case e: Exception => Left(e.getMessage) }
 }

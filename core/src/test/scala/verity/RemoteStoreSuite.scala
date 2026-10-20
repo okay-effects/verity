@@ -23,8 +23,8 @@ class RemoteStoreSuite extends munit.FunSuite {
   /** the program: a passport kept, found, revised, its history, retired, the journal's count */
   def program[R[_]](implicit in: In[Store, R]): (List[Record], Option[Record], List[Record], Int) ! R = {
     val passport = Kinds.passport
-    define[R](passport).flatMap(_ => add[R](passport.id, Json.obj("number" -> Json.Str("AB123456"), "country" -> Json.Str("UA")), Context(None, Some("UA")), Period(None, None), Set("travel"), None)).flatMap { r =>
-      revise[R](r.id, Json.obj("number" -> Json.Str("AB123457"), "country" -> Json.Str("UA")), r.context, r.valid, r.tags, Some("renewed")).flatMap(_ =>
+    define[R](passport).flatMap(_ => add[R](passport.id, Json.obj("number" -> Json.Str("AB123456"), "country" -> Json.Str("UA")), Extra.of(Context(None, Some("UA")), Period(None, None)), Set("travel"), None)).flatMap { r =>
+      revise[R](r.id, Json.obj("number" -> Json.Str("AB123457"), "country" -> Json.Str("UA")), r.meta, r.tags, Some("renewed")).flatMap(_ =>
         find[R]("AB1234").flatMap(found => get[R](r.id).flatMap(got => history[R](r.id).flatMap(h => retire[R](r.id, Some("lost")).flatMap(_ => journaled[R].map { case (_, n) => (found, got, h, n) })))))
     }
   }
@@ -34,7 +34,7 @@ class RemoteStoreSuite extends munit.FunSuite {
     // the server: the described store served at /store, the vault kept between requests, ids its own
     var vault = Vault.empty
     val serverIds = ids()
-    val served = rest.serve[Store, S](Describes.store, "/store")
+    val served = rest.serve[Store, S](okay.store.Stores.describe, "/store")
     var calls: List[String] = Nil
     val fetched = new TailHandler[Fetch, Void, (List[Record], Option[Record], List[Record], Int), (List[Record], Option[Record], List[Record], Int)] {
       def ret(a: (List[Record], Option[Record], List[Record], Int)) = pure(a)
@@ -46,7 +46,7 @@ class RemoteStoreSuite extends munit.FunSuite {
       }
     }
     val remote = Machine.run(handle[Fetch, F, Void, (List[Record], Option[Record], List[Record], Int), (List[Record], Option[Record], List[Record], Int)](
-      rest.remote[Store](Describes.store, "/store").apply[FS, F, (List[Record], Option[Record], List[Record], Int)](program[FS]), fetched))
+      rest.remote[Store](okay.store.Stores.describe, "/store").apply[FS, F, (List[Record], Option[Record], List[Record], Int)](program[FS]), fetched))
     assertEquals(remote, direct)
     assertEquals(remote._1.map(_.fields.get("number")), List(Some(Json.Str("AB123457"))))
     assertEquals(remote._3.size, 2); assertEquals(remote._4, 4)
@@ -56,8 +56,8 @@ class RemoteStoreSuite extends munit.FunSuite {
     assert(calls.exists(_.startsWith("GET /store/get?id=id1")), calls.toString)
   }
   test("the description lists every operation of the store with its method") {
-    val (_, r) = Machine.run(store(Vault.empty, ids(), now)(rest.serve[Store, S](Describes.store, "/store").service(Request.get("/store"))))
-    Describes.store.operations.foreach(o => assert(r.body.contains(s""""rel":"${o.name}""""), o.name))
+    val (_, r) = Machine.run(store(Vault.empty, ids(), now)(rest.serve[Store, S](okay.store.Stores.describe, "/store").service(Request.get("/store"))))
+    okay.store.Stores.describe.operations.foreach(o => assert(r.body.contains(s""""rel":"${o.name}""""), o.name))
     assert(r.body.contains(""""rel":"get","href":"/store/get","method":"GET"""") && r.body.contains(""""rel":"add","href":"/store/add","method":"POST""""), r.body)
   }
 }

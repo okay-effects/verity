@@ -35,7 +35,7 @@ object Main {
     val initial = Disk.read(path).map(Journal.read).map { case (_, events, _) => Vault.of(events) }.getOrElse(Vault.empty)
     val ids = () => java.util.UUID.randomUUID().toString
     val now = () => System.currentTimeMillis()
-    store(initial, ids, now)(askingTheOwner(faces)(policy(Audience.Owner)(clipboardSystem(filesOnDisk(app.navs.memory(pages)(app.run[All](path)))))))
+    store(initial, ids, now)(askingTheOwner(faces)(policy(Audience.Owner)(clipboardTo(SystemClipboard.put)(filesOn(Disk.read, Disk.write)(app.navs.memory(pages)(app.run[All](path)))))))
   }
 
   /** the owner in a browser (`web`: pages from the server; `app`: one page, okay-faces' remote face over REST) or a program
@@ -57,31 +57,43 @@ object Main {
       // each visitor: the file as it stands, the owner at their own face (web) or a program with no consent (api)
       val initial = Disk.read(path).map(Journal.read).map { case (_, events, _) => Vault.of(events) }.getOrElse(Vault.empty)
       val pages = new Pages[app.Place](app.Main)
-      val inner = clipboardSystem(filesOnDisk(app.navs.memory(pages)(app.run[HAll](path))))
+      val inner = clipboardTo(SystemClipboard.put)(filesOn(Disk.read, Disk.write)(app.navs.memory(pages)(app.run[HAll](path))))
       val program = if (mode != "api") store(initial, () => java.util.UUID.randomUUID().toString, () => System.currentTimeMillis())(askingTheOwner(faces)(policy(Audience.Owner)(inner)))
                     else store(initial, () => java.util.UUID.randomUUID().toString, () => System.currentTimeMillis())(consenting(Nil)(policy(Audience.Agent("api"))(inner)))
       faces.dialogue[(Vault, Unit), L](faces.steps[(Vault, Unit), HF, L](program))
     }
     val sessions = okay.face.rest.RestFace(faces).sessions[(Vault, Unit), L](() => session()).service
+    // `browser`: the dialogue runs in the page; the server is the store (kept between requests) and the file, as REST domains
+    type LS[X] = Sum[L, Store, X]
+    type LFi[X] = Sum[L, Files, X]
+    val domains = new okay.face.rest.RestDomains[Machine.type]()(Machine)
+    val storeServed = domains.serve[Store, LS](okay.store.Stores.describe, "/store")
+    val filesServed = domains.serve[Files, LFi](Describes.files, "/files")
+    var vault: Vault = Disk.read(path).map(Journal.read).map { case (_, events, _) => Vault.of(events) }.getOrElse(Vault.empty)
+    val files = filesOn(_ => Disk.read(path), (_, lines) => Disk.write(path, lines))   // the page names a file; the server's is this one
+    def pages(req: okay.http.Request): Option[okay.http.Response ! L] = (req.method, req.path) match {
+      case ("GET", "/") => Some(pure[okay.http.Response, L](okay.http.Response.html(Shell.page("Verity", if (mode == "app") "remote" else "local", new java.io.File(path).getName))))
+      case ("GET", "/okay.css") => Some(pure[okay.http.Response, L](okay.http.Response.ok(okay.face.Css(Look.default), "text/css; charset=utf-8")))
+      case ("GET", "/app.js") => Some(pure[okay.http.Response, L](Shell.script.fold(e => okay.http.Response.text(e, 503), js => okay.http.Response.ok(js, "application/javascript; charset=utf-8"))))
+      case _ => None
+    }
     val service: okay.http.Request => okay.http.Response ! L = mode match {
       case "web" => okay.face.html.HtmlFace(faces).pages[(Vault, Unit), L](() => session(), "Verity").service
-      case "app" => req => (req.method, req.path) match {
-        // the shell, the look and the script are files; everything under /sessions is the REST face's
-        case ("GET", "/") => pure[okay.http.Response, L](okay.http.Response.html(Shell.page("Verity")))
-        case ("GET", "/okay.css") => pure[okay.http.Response, L](okay.http.Response.ok(okay.face.Css(Look.default), "text/css; charset=utf-8"))
-        case ("GET", "/app.js") => pure[okay.http.Response, L](Shell.script.fold(e => okay.http.Response.text(e, 503), js => okay.http.Response.ok(js, "application/javascript; charset=utf-8")))
-        case _ => sessions(req)
-      }
+      case "app" => req => pages(req).getOrElse(sessions(req))
+      case "browser" => req => pages(req).getOrElse(
+        if (req.path.startsWith("/store")) store(vault, () => java.util.UUID.randomUUID().toString, () => System.currentTimeMillis())(storeServed.service(req)).map { case (v, r) => vault = v; r }
+        else if (req.path.startsWith("/files")) files(filesServed.service(req))
+        else pure[okay.http.Response, L](okay.http.Response.notFound(req.path)))
       case _ => sessions
     }
     val server = JdkServer.start(port)
     System.err.println(s"verity $mode at http://127.0.0.1:${server.port}/" + (if (mode == "api") "sessions (POST to open one)" else ""))
-    if (mode == "app") Shell.script.left.foreach(System.err.println)
+    if (mode == "app" || mode == "browser") Shell.script.left.foreach(System.err.println)
     Machine.run(jdk.jdk(server)(https.serve[L](service)))
   }
 
   def main(args: Array[String]): Unit = args.toList match {
-    case ("web" | "app" | "api") :: rest =>
+    case ("web" | "app" | "browser" | "api") :: rest =>
       val (port, file) = rest match { case p :: f :: _ if p.forall(_.isDigit) => (p.toInt, f); case p :: Nil if p.forall(_.isDigit) => (p.toInt, defaultPath); case f :: _ => (8080, f); case Nil => (8080, defaultPath) }
       served(args.head, port, file)
     case "mcp" :: rest =>
@@ -99,7 +111,7 @@ object Main {
       val initial = Disk.read(path).map(Journal.read).map { case (_, events, _) => Vault.of(events) }.getOrElse(Vault.empty)
       val pages = new Pages[app.Place](app.Main)
       val program = store(initial, () => java.util.UUID.randomUUID().toString, () => System.currentTimeMillis())(
-        agents.consentByElicitation(policy(Audience.Agent("mcp"))(clipboardSystem(filesOnDisk(app.navs.memory(pages)(app.run[AAll](path)))))))
+        agents.consentByElicitation(policy(Audience.Agent("mcp"))(clipboardTo(SystemClipboard.put)(filesOn(Disk.read, Disk.write)(app.navs.memory(pages)(app.run[AAll](path)))))))
       Machine.run(agents.face.servers.links.stdio(agents.face.servers.serve[L](agents.server[(Vault, Unit), L](faces.steps[(Vault, Unit), ALF, L](program)))))
     case "swing" :: rest =>
       val path = rest.headOption.getOrElse(defaultPath)
@@ -123,11 +135,11 @@ object Main {
 /** THE SHELL of `verity app`: a page with nothing but the look, a root and the script; the script is the linked page of
  * the `web` project (`sbt web/fullLinkJS`), found by `-Dverity.js=path` or at its usual place under `web/target` */
 object Shell {
-  def page(title: String): String =
+  def page(title: String, mode: String, file: String): String =
     s"""<!DOCTYPE html>
        |<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
        |<title>$title</title><link rel="stylesheet" href="/okay.css"/></head>
-       |<body><div id="app"></div><script src="/app.js"></script></body></html>""".stripMargin
+       |<body><div id="app" data-mode="$mode" data-file="${file.replace("\"", "")}"></div><script src="/app.js"></script></body></html>""".stripMargin
   def script: Either[String, String] = {
     val candidates = sys.props.get("verity.js").toList ++ List("web/target/scala-3.3.8/verity-web-opt/main.js", "web/target/scala-3.3.8/verity-web-fastopt/main.js")
     candidates.map(new java.io.File(_)).find(_.isFile) match {

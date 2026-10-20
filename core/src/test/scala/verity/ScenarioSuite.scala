@@ -60,7 +60,7 @@ abstract class ScenarioChecks(val fx0: Runner, name: String) extends munit.FunSu
     assertEquals(out.vault.records.size, 1)
     assertEquals(out.vault.records.head.tags, Set("travel", "renewed"))
     assertEquals(out.vault.history(out.vault.records.head.id).size, 2)
-    assertEquals(out.vault.events.collect { case e: Event.Revealed => (e.field, e.audience) }, List(("number", "owner"), ("holder", "owner")))
+    assertEquals(out.vault.events.collect { case e: Event.Accessed => (e.field, e.by) }, List(("number", "owner"), ("holder", "owner")))
     assertEquals(out.vault.unsaved, 0)
     assertEquals(out.files.keySet, Set("v.jsonl"))
     val (_, events, damaged) = Journal.read(out.files("v.jsonl"))
@@ -86,7 +86,7 @@ abstract class ScenarioChecks(val fx0: Runner, name: String) extends munit.FunSu
     assert(out.views.exists { case View.Group(_, cs) => cs.exists { case View.Table(_, rows) => rows.exists(_.exists { case View.Text(t) => t == "••••" || t.startsWith("•••• "); case _ => false }); case _ => false }; case _ => false })
   }
   test(s"$name: a damaged journal is read with a warning; an agent's copy needs consent") {
-    val lines = Journal.write(Journal.Header(1, 1L), Nil) ++ List("garbage")
+    val lines = Journal.write(Journal.Header("verity", 1, 1L), Nil) ++ List("garbage")
     val out = play(Script.of(Chosen.plain("quit")), files = Map("v.jsonl" -> lines))
     assert(out.views.exists { case View.Notice(View.Notice.Warning, s) => s.contains("1 damaged"); case _ => false }, out.views.mkString("\n"))
     val agent = play(Script.of(
@@ -94,7 +94,7 @@ abstract class ScenarioChecks(val fx0: Runner, name: String) extends munit.FunSu
       Chosen("open", obj("n" -> Str("1"))), Chosen("copy", obj("field" -> Str("number"))), Chosen("copy", obj("field" -> Str("number"))), Chosen.plain("done"), Chosen.plain("quit"), Chosen.plain("no")),
       audience = Audience.Agent("claude"), consents = List(false, true))
     assertEquals(agent.clipboard, List("AB123456"))
-    assertEquals(agent.vault.events.collect { case e: Event.Revealed => e.audience }, List("agent:claude"))
+    assertEquals(agent.vault.events.collect { case e: Event.Accessed => e.by }, List("agent:claude"))
     assert(agent.views.contains(View.problem("number not shown")))
   }
 }

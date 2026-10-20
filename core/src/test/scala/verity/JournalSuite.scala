@@ -7,20 +7,20 @@ import okay.effects.shape.Day
 class JournalSuite extends munit.FunSuite {
   val passport = Record(RecordId("r1"), VersionId("v1"), None, Kinds.passport.id,
     obj("country" -> Str("UA"), "number" -> Str("AB123456"), "issued" -> Str("2020-01-02"), "expires" -> Str("2030-01-01"), "holder" -> Str("SHCHERBYNA SERHII")),
-    Context(None, Some("UA")), Period(Some(Day(2020, 1, 2)), Some(Day(2030, 1, 1))), Set("travel"), None, 1000L)
+    Extra.of(Context(None, Some("UA")), Period(Some(Day(2020, 1, 2)), Some(Day(2030, 1, 1)))), Set("travel"), None, 1000L)
   val revised = passport.copy(version = VersionId("v2"), parent = Some(VersionId("v1")), fields = passport.fields, at = 2000L)
-  val events = List(Event.RecordAdded(passport), Event.RecordRevised(revised), Event.Revealed(passport.id, "number", "owner", 3000L),
-    Event.KindDefined(Kind(KindId("uk-ni"), "UK NI number", okay.effects.shape.Schema.Record(Vector(okay.effects.shape.Schema.Field("value", okay.effects.shape.Schema.Text(Nil), Some("Value"), None, true, None))), Set("value"), List("value"), false), 4000L))
+  val events = List(Event.RecordAdded(passport), Event.RecordRevised(revised), Event.Accessed(passport.id, "number", "owner", 3000L),
+    Event.KindDefined(Kind(KindId("uk-ni"), "UK NI number", okay.effects.shape.Schema.Record(Vector(okay.effects.shape.Schema.Field("value", okay.effects.shape.Schema.Text(Nil), Some("Value"), None, true, None))), Set("value"), List("value")), 4000L))
 
   test("every event round trips through its shape and the file") {
     events.foreach(e => assertEquals(Event.shape.decode(Event.shape.encode(e)), Right(e)))
-    val lines = Journal.write(Journal.Header(1, 1000L), events)
+    val lines = Journal.write(Journal.Header("verity", 1, 1000L), events)
     assertEquals(lines.size, 5)
     val (h, es, damaged) = Journal.read(lines)
-    assertEquals(h, Some(Journal.Header(1, 1000L))); assertEquals(es, events); assertEquals(damaged, Nil)
+    assertEquals(h, Some(Journal.Header("verity", 1, 1000L))); assertEquals(es, events); assertEquals(damaged, Nil)
   }
   test("a damaged line is reported by number and skipped; blank lines are nothing") {
-    val lines = Journal.write(Journal.Header(1, 1L), events)
+    val lines = Journal.write(Journal.Header("verity", 1, 1L), events)
     val broken = lines.take(2) ++ List("{\"type\": \"record-added\", \"record\": 5}", "", "not json") ++ lines.drop(2)
     val (_, es, damaged) = Journal.read(broken)
     assertEquals(es, events)

@@ -53,10 +53,10 @@ class Verity[F <: Effects](val faces: Faces[F]) {
     if (rs.isEmpty) View.stack(View.heading("Verity"), View.text("Nothing kept yet. Add a record."))
     else View.stack(View.heading("Verity"), View.Table(Vector("#", "kind", "summary", "context", "valid", "tags"),
       rs.zipWithIndex.map { case (r, i) => Vector(View.text((i + 1).toString), View.text(kinds.get(r.kind).fold(r.kind.value)(_.name)),
-        View.text(kinds.get(r.kind).fold("")(summary(_, r))), View.text(context(r.context)), View.text(period(r.valid)), View.text(r.tags.toList.sorted.mkString(" "))) }.toVector))
+        View.text(kinds.get(r.kind).fold("")(summary(_, r))), View.text(context(Extra.context(r))), View.text(period(Extra.valid(r))), View.text(r.tags.toList.sorted.mkString(" "))) }.toVector))
   def card(k: Kind, r: Record): View = View.stack(View.heading(k.name, 2),
     View.Fields(fieldsOf(k).map(f => f.label.getOrElse(f.name) -> r.fields.get(f.name).fold[View](View.Empty)(v => if (k.secret(f.name)) View.Masked(masked(v)) else View.text(plain(v))))),
-    View.fields("context" -> View.text(context(r.context)), "valid" -> View.text(period(r.valid)), "tags" -> View.text(r.tags.toList.sorted.mkString(" ")),
+    View.fields("context" -> View.text(context(Extra.context(r))), "valid" -> View.text(period(Extra.valid(r))), "tags" -> View.text(r.tags.toList.sorted.mkString(" ")),
       "note" -> View.text(r.note.getOrElse("")), "version" -> View.text(r.version.value)))
   def fieldsOf(k: Kind): Vector[Schema.Field] = k.schema match { case Schema.Record(fs) => fs; case Schema.Described(Schema.Record(fs), _, _) => fs; case _ => Vector.empty }
 
@@ -72,8 +72,8 @@ class Verity[F <: Effects](val faces: Faces[F]) {
     field("tags", text.optional).labelled("Tags").documented("separated by spaces or commas"), field("note", text.optional).labelled("Note"))(
     Meta(_, _, _, _, _, _))(m => (m.language, m.country, m.from, m.to, m.tags, m.note)) match {
     case shape => current.fold(shape)(r => Shape.Loose(Kind.withDefaults(shape.erased, Json.Obj(Vector(
-      "language" -> r.context.language.fold[Json](Json.Null)(Json.Str(_)), "country" -> r.context.country.fold[Json](Json.Null)(Json.Str(_)),
-      "from" -> r.valid.from.fold[Json](Json.Null)(d => Json.Str(d.toString)), "to" -> r.valid.to.fold[Json](Json.Null)(d => Json.Str(d.toString)),
+      "language" -> Extra.context(r).language.fold[Json](Json.Null)(Json.Str(_)), "country" -> Extra.context(r).country.fold[Json](Json.Null)(Json.Str(_)),
+      "from" -> Extra.valid(r).from.fold[Json](Json.Null)(d => Json.Str(d.toString)), "to" -> Extra.valid(r).to.fold[Json](Json.Null)(d => Json.Str(d.toString)),
       "tags" -> Json.Str(r.tags.toList.sorted.mkString(" ")), "note" -> r.note.fold[Json](Json.Null)(Json.Str(_))).filter(_._2 != Json.Null))))
       .refine[Meta](j => shape.decode(j).left.map(_.map(_.render).mkString("; ")))(m => shape.encode(m)))
   }
@@ -95,7 +95,7 @@ class Verity[F <: Effects](val faces: Faces[F]) {
       val base: Schema = f.kind match { case "number" => Schema.Number(Nil); case "date" => Schema.Date; case "bool" => Schema.Bool; case _ => Schema.Text(Nil) }
       Schema.Field(f.name, if (f.optional) Schema.Optional(base) else base, Some(f.label).filter(_.nonEmpty), None, f.secret, None)
     }
-    Kind(KindId(Action.nameOf(spec.name)), spec.name, Schema.Record(fields.toVector), spec.fields.filter(_.secret).map(_.name).toSet, spec.fields.take(2).map(_.name), spec.contextual)
+    Kinds.kind(Action.nameOf(spec.name), spec.name, Schema.Record(fields.toVector), spec.fields.filter(_.secret).map(_.name).toSet, spec.fields.take(2).map(_.name), spec.contextual)
   }
 
   // ---- THE SCREENS
@@ -144,7 +144,7 @@ class Verity[F <: Effects](val faces: Faces[F]) {
     push[Place, R](Opened(id)).flatMap(_ => get[R](id)).flatMap {
       case None => show[R](View.problem("the record is gone"))
       case Some(r) => kinds[R].flatMap { ks =>
-        val k = ks.find(_.id == r.kind).getOrElse(Kind(r.kind, r.kind.value, Schema.Record(Vector.empty), Set.empty, Nil, false))
+        val k = ks.find(_.id == r.kind).getOrElse(Kind(r.kind, r.kind.value, Schema.Record(Vector.empty)))
         val names = fieldsOf(k).map(_.name).toList
         val which = choice[String](names.map(x => x -> x): _*).described("Field")
         offer[CardChoice, R](card(k, r), List(
@@ -182,7 +182,7 @@ class Verity[F <: Effects](val faces: Faces[F]) {
           case Some(fields) => fillOrCancel[Meta, R](View.heading("Context, validity, tags", 2), meta(None)).flatMap {
             case None => pure[Unit, R](())
             case Some(m) => fields match {
-              case o: Json.Obj => add[R](k.id, o, m.ctx, m.valid, m.tagSet, m.note).flatMap(r => show[R](View.info(s"added: ${summary(k, r)}")))
+              case o: Json.Obj => add[R](k.id, o, Extra.of(m.ctx, m.valid), m.tagSet, m.note).flatMap(r => show[R](View.info(s"added: ${summary(k, r)}")))
               case _ => show[R](View.problem("not a record"))
             }
           }
@@ -198,7 +198,7 @@ class Verity[F <: Effects](val faces: Faces[F]) {
       case Some(fields) => fillOrCancel[Meta, R](View.heading("Context, validity, tags", 2), meta(Some(r))).flatMap {
         case None => pure[Unit, R](())
         case Some(m) => fields match {
-          case o: Json.Obj => revise[R](r.id, o, m.ctx, m.valid, m.tagSet, m.note).flatMap(_ => show[R](View.info("a new version kept")))
+          case o: Json.Obj => revise[R](r.id, o, Extra.of(m.ctx, m.valid), m.tagSet, m.note).flatMap(_ => show[R](View.info("a new version kept")))
           case _ => show[R](View.problem("not a record"))
         }
       }
@@ -230,15 +230,11 @@ class Verity[F <: Effects](val faces: Faces[F]) {
   def saving[R[_]](path: String)(implicit n: Needs[R]): Unit ! R = {
     import n._
     journaled[R].flatMap { case (events, _) =>
-      save[R](path, Journal.write(Journal.Header(1, events.headOption.map(at).getOrElse(0L)), events)).flatMap {
+      save[R](path, Journal.write(Journal.Header("verity", 1, events.headOption.map(_.at).getOrElse(0L)), events)).flatMap {
         case Right(()) => saved[R].flatMap(_ => show[R](View.info(s"saved to $path")))
         case Left(e) => show[R](View.problem(s"not saved: $e"))
       }
     }
-  }
-  private def at(e: Event): Long = e match {
-    case Event.KindDefined(_, t) => t; case Event.KindRevised(_, t) => t; case Event.RecordAdded(r) => r.at
-    case Event.RecordRevised(r) => r.at; case Event.RecordRetired(_, _, t) => t; case Event.Revealed(_, _, _, t) => t
   }
 
   /** the whole: the file opened, the main screen until quit */

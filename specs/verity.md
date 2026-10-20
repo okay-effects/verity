@@ -161,9 +161,20 @@ In order of what stresses the design most:
    here a small JVM implementation or BouncyCastle as the first dependency — decide then), the key held by an effect
    `Crypto` so an OS keychain can replace the passphrase.
 3. Attachments.
-5. `Describes.store` (2026-10-20): the store described, served as REST resources and performed from afar; `RemoteStoreSuite`
-   shows one program answering the same by the vault and over REST. Not on the `api` port: a raw `Store` bypasses the
-   policy over `Reveal`; a masked subset for agents is its own description, later.
+5. The store described (2026-10-20): `okay.store.Stores.describe`, served as REST resources and performed from afar;
+   `RemoteStoreSuite` shows one program answering the same by the vault and over REST. Not on the `api` port: a raw
+   `Store` bypasses the policy over `Reveal`; a masked subset for agents is its own description, later.
+6. okay-store extracted (2026-10-20, github.com/okay-effects/okay-store): `Kind`, `Record`, `Event`, `Journal`, `Kept`
+   and the effect `Store` with its handler and description are the library's; verity keeps `Context` and `Period` in a
+   record's `meta` (`Extra`), `contextual` in a kind's `meta` (`Kinds`), its built-in kinds, and `Vault` as a name for
+   `Kept` with those kinds. `Event.Revealed` is `Event.Accessed(id, field, by, at)`; the journal's header is
+   `{"format":"verity","version":1,...}`.
+7. The other cut (2026-10-20): `verity browser` — the dialogue in the browser (`web/Local`, the same `Verity` scenario
+   under Laminar, the owner asked at this face, the clipboard the browser's), `Store` and `Files` performed over REST
+   against the server's `/store` and `/files` (`RestDomains.serve` under the vault kept between requests and the one
+   file). `core` is cross-built for it; `Agents`, `Disk` and `SystemClipboard` are JVM-only (`scala-jvm`). Tested
+   under jsdom with the server in the same page (`LocalSuite`); one script serves `app` (remote) and `browser` (local)
+   by the root's `data-mode`.
 4. ~~A web face through okay-faces' okay-ui bridge or Laminar.~~ Done as `verity app`: okay-faces' remote face (Laminar) over the REST face, the page knowing nothing of verity; `web/` is the linked script.
 
 ## Build

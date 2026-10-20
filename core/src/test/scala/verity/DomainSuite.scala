@@ -20,11 +20,11 @@ abstract class DomainChecks(val fx0: Runner, name: String) extends munit.FunSuit
 
   def addPassport[R[_]](implicit s: In[Store, R]): Record ! R =
     add[R](Kinds.passport.id, obj("country" -> Str("UA"), "number" -> Str("AB123456"), "issued" -> Str("2020-01-02"), "expires" -> Str("2030-01-01"), "holder" -> Str("S.")),
-      Context(None, Some("UA")), Period(None, None), Set("travel"), None)
+      Extra.of(Context(None, Some("UA")), Period(None, None)), Set("travel"), None)
 
   test(s"$name: the store — add, revise, retire, find, history, journaled and saved") {
     val program: (List[Record], List[Record], Option[Record], Int) ! S = addPassport[S].flatMap { r =>
-      revise[S](r.id, r.fields, r.context, r.valid, Set("travel", "old"), Some("renewed")).flatMap(_ =>
+      revise[S](r.id, r.fields, r.meta, Set("travel", "old"), Some("renewed")).flatMap(_ =>
         find[S]("ab12", None).flatMap(found => history[S](r.id).flatMap(h => get[S](r.id).flatMap(cur => journaled[S].map { case (_, unsaved) => (found, h, cur, unsaved) }))))
     }
     val (vault, (found, h, cur, unsaved)) = fx0.run(store(Vault.empty, ids, clock)(program))
@@ -40,17 +40,17 @@ abstract class DomainChecks(val fx0: Runner, name: String) extends munit.FunSuit
       addPassport[R].flatMap(r => reveal[R](r.id, "number").flatMap(a => reveal[R](r.id, "number").map(b => (a, b))))
     val owner = fx0.run(store(Vault.empty, ids, clock)(consenting(Nil)(policy(Audience.Owner)(ask[SCR]))))
     assertEquals(owner._2, ((Some("AB123456"), Some("AB123456"))))
-    assertEquals(owner._1.events.collect { case e: Event.Revealed => e.audience }, List("owner", "owner"))
+    assertEquals(owner._1.events.collect { case e: Event.Accessed => e.by }, List("owner", "owner"))
     val agent = fx0.run(store(Vault.empty, ids, clock)(consenting(List(true, false))(policy(Audience.Agent("claude"))(ask[SCR]))))
     assertEquals(agent._2, ((Some("AB123456"), None)))
-    assertEquals(agent._1.events.collect { case e: Event.Revealed => e.audience }, List("agent:claude"))
+    assertEquals(agent._1.events.collect { case e: Event.Accessed => e.by }, List("agent:claude"))
     val refused = fx0.run(store(Vault.empty, ids, clock)(consenting(Nil)(policy(Audience.Agent("x"))(ask[SCR]))))
     assertEquals(refused._2, ((None, None)))
-    assert(!refused._1.events.exists(_.isInstanceOf[Event.Revealed]))
+    assert(!refused._1.events.exists(_.isInstanceOf[Event.Accessed]))
   }
   test(s"$name: files in memory, and the journal through them") {
     type F[X] = Sum[Void, Files, X]
-    val lines = Journal.write(Journal.Header(1, 1L), Nil)
+    val lines = Journal.write(Journal.Header("verity", 1, 1L), Nil)
     val (files, got) = fx0.run(filesInMemory(Map.empty)(save[F]("a.jsonl", lines).flatMap(_ => open[F]("a.jsonl"))))
     assertEquals(got, Right(lines)); assertEquals(files.keySet, Set("a.jsonl"))
     assertEquals(fx0.run(filesInMemory(Map.empty)(open[F]("none")))._2, Right(Nil))
