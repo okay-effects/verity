@@ -2,8 +2,8 @@ package verity
 
 import okay.effects.Runner
 import okay.effects.json.Json
-import okay.face.{Faces, Step}
-import okay.face.mcp.{Markdown, McpFace}
+import okay.faces.{Faces, Step}
+import okay.faces.mcp.{Markdown, McpFace}
 import okay.mcp.Link
 
 /** VERITY FOR AN AGENT: the same dialogue, served over MCP — the agent sees what a person would, as tools. The audience

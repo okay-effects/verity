@@ -78,7 +78,7 @@ object Mark {
   case object Expired extends Mark
 }
 object Marking {
-  import okay.face.{Look, Marks, Rule, Style, Theme, Tone}
+  import okay.faces.{Look, Marks, Rule, Style, Theme, Tone}
   val marks: Marks[Mark] = Marks.of(Shape.derived[Mark]).explained(
     Mark.Kind -> "the kind of the record: Passport, Address, Name…",
     Mark.Secret -> "a secret field of the record, masked; shown only with the owner's consent",

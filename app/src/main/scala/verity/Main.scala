@@ -3,10 +3,10 @@ package verity
 import okay.effects.{Sum, Void}
 import okay.effects.machine.Machine
 import okay.effects.world.Console
-import okay.face.{Face, Faces, Paint, Pages}
-import okay.face.term.Ansi
-import okay.face.swing.SwingFace
-import okay.face.term.Terminal
+import okay.faces.{Face, Faces, Paint, Pages}
+import okay.faces.term.Ansi
+import okay.faces.swing.SwingFace
+import okay.faces.term.Terminal
 import okay.store.jdbc.{Jdbcs, Sqlite}
 
 /** `verity [file]` at the terminal; `verity swing [file]` in a window; `verity mcp` for an agent; `verity web`, `app`,
@@ -82,7 +82,7 @@ object Main {
                     else storage(consenting(Nil)(policy(Audience.Agent("api"))(inner)))
       faces.dialogue[Unit, L](faces.steps[Unit, HF, L](program))
     }
-    val sessions = okay.face.rest.RestFace.over(faces).sessions[Unit, L](() => session(), vocabulary = Marking.marks.vocabulary).service
+    val sessions = okay.faces.rest.RestFace.over(faces).sessions[Unit, L](() => session(), vocabulary = Marking.marks.vocabulary).service
     // MCP over HTTP at /mcp: an agent's session, its own dialogue; with a stream accepted the owner's consent is asked by
     // elicitation as over stdio, the question parked between requests; without one, no secret is shown
     type LL[X] = Sum[L, okay.mcp.Link, X]
@@ -103,17 +103,17 @@ object Main {
     // `browser`: the dialogue runs in the page; the server is the storage and the file, as REST domains
     type LS[X] = Sum[L, Store, X]
     type LFi[X] = Sum[L, Files, X]
-    val domains = new okay.face.rest.RestDomains[Machine.type]()(Machine)
+    val domains = new okay.faces.rest.RestDomains[Machine.type]()(Machine)
     val storeServed = domains.serve[Store, LS](okay.store.Stores.describe, "/store")
     val filesServed = domains.serve[Files, LFi](Describes.files, "/files")
     def pages(req: okay.http.Request): Option[okay.http.Response ! L] = (req.method, req.path) match {
       case ("GET", "/") => Some(pure[okay.http.Response, L](okay.http.Response.html(Shell.page("Verity", if (mode == "app") "remote" else "local", new java.io.File(storage.journal).getName))))
-      case ("GET", "/okay.css") => Some(pure[okay.http.Response, L](okay.http.Response.ok(okay.face.Css(Marking.look, Marking.dark), "text/css; charset=utf-8")))
+      case ("GET", "/okay.css") => Some(pure[okay.http.Response, L](okay.http.Response.ok(okay.faces.Css(Marking.look, Marking.dark), "text/css; charset=utf-8")))
       case ("GET", "/app.js") => Some(pure[okay.http.Response, L](Shell.script.fold(e => okay.http.Response.text(e, 503), js => okay.http.Response.ok(js, "application/javascript; charset=utf-8"))))
       case _ => None
     }
     val service: okay.http.Request => okay.http.Response ! L = mode match {
-      case "web" => okay.face.html.HtmlFace.over(faces).pages[Unit, L](() => session(), "Verity").service
+      case "web" => okay.faces.html.HtmlFace.over(faces).pages[Unit, L](() => session(), "Verity").service
       case "app" => req => pages(req).getOrElse(sessions(req))
       case "browser" => req => pages(req).getOrElse(
         if (req.path.startsWith("/store")) storage(storeServed.service(req))
@@ -152,7 +152,7 @@ object Main {
       val face = new SwingFace[Machine.type]()(faces)
       // Console is in the row for the terminal's sake; a window has none: the real console still answers it
       val io = new okay.effects.world.Io[Machine.type]()(Machine)
-      face.window("Verity", faces.steps[Unit, CF, C](wired(storage, pages)).asInstanceOf[okay.face.Step[Unit, ({ type L[X] = X ! Void })#L] ! Void],
+      face.window("Verity", faces.steps[Unit, CF, C](wired(storage, pages)).asInstanceOf[okay.faces.Step[Unit, ({ type L[X] = X ! Void })#L] ! Void],
         (_: Unit) => sys.exit(0), pages = Some((pages, (p: Any) => p.toString)), look = Some(Marking.look))
     case rest =>
       val storage = new Storage(rest.headOption.getOrElse(defaultPath))

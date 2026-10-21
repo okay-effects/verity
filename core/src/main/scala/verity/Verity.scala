@@ -4,7 +4,7 @@ import okay.effects.Effects
 import okay.effects.json.Json
 import okay.effects.shape.{Schema, Shape}
 import okay.effects.shape.Shape.{bool, choice, date, field, record, text}
-import okay.face.{Action, Face, Faces, Marks, Navigation, Navigations, View}
+import okay.faces.{Action, Face, Faces, Marks, Navigation, Navigations, View}
 
 /**
  * THE SCENARIO: a dialogue in `Face + Store + Reveal + Consent + Clipboard + Files + Navigation[Place]`. The main screen

@@ -3,7 +3,7 @@ package verity
 import okay.effects.{Sum, Void}
 import okay.effects.json.Json
 import okay.effects.machine.Machine
-import okay.face.rest.RestDomains
+import okay.faces.rest.RestDomains
 import okay.http.{Fetch, Request, Response}
 
 /** THE STORE FROM AFAR: the same program, its Store handled here by the vault and there by REST — the server's vault

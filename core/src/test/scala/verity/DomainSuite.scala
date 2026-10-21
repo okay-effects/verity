@@ -4,7 +4,7 @@ import okay.effects.{Runner, Sum, Void}
 import okay.effects.json.Json.{Str, obj}
 import okay.effects.machine.Machine
 import okay.effects.free.Free
-import okay.face.View
+import okay.faces.View
 
 /** THE DOMAIN'S HANDLERS: the store, the policy over reveal, consent, files */
 abstract class DomainChecks(val fx0: Runner, name: String) extends munit.FunSuite {

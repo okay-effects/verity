@@ -4,7 +4,7 @@ import okay.effects.{Sum, Void}
 import okay.effects.json.Json
 import okay.effects.json.Json.{Str, num, obj}
 import okay.effects.machine.Machine
-import okay.face.{Face, Faces, Pages}
+import okay.faces.{Face, Faces, Pages}
 import okay.mcp.{Link, Rpc}
 
 /** THE AGENT'S FACE of verity over a scripted link: the screens as tools, an add, a copy that asks the owner */

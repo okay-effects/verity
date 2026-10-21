@@ -5,8 +5,8 @@ import okay.effects.json.Json
 import okay.effects.json.Json.{Str, obj}
 import okay.effects.machine.Machine
 import okay.effects.free.Free
-import okay.face.{Chosen, Face, Faces, Navigation, Pages, View}
-import okay.face.test.Plays
+import okay.faces.{Chosen, Face, Faces, Navigation, Pages, View}
+import okay.faces.test.Plays
 
 /** THE WHOLE APPLICATION under the test face: a script of choices, every handler in memory, on an implementation */
 abstract class ScenarioChecks(val fx0: Runner, name: String) extends munit.FunSuite {

@@ -2,7 +2,7 @@ package verity
 
 import okay.effects.Effects
 import okay.effects.json.Json
-import okay.face.View
+import okay.faces.View
 
 /** THE DOMAIN'S EFFECTS. The scenario is a program in `Face + Store + Reveal + Consent + Clipboard + Files`; each a
  * port, its handlers the adapters: in memory and pure for a test, the disk and the clipboard for the real thing. `Store`
@@ -99,9 +99,9 @@ class Domain[F <: Effects with Singleton](implicit implementation: F) {
       })
   }
   /** the owner asked at their face: `Consent` becomes a `confirm` of `Face` */
-  def askingTheOwner(faces: okay.face.Faces[fx.type]): AskingTheOwner = new AskingTheOwner(faces)
-  final class AskingTheOwner(faces: okay.face.Faces[fx.type]) {
-    def apply[R[_], Rest[_], A](p: A ! R)(implicit sp: Split[Consent, R, Rest], f: In[okay.face.Face, Rest]): A ! Rest =
+  def askingTheOwner(faces: okay.faces.Faces[fx.type]): AskingTheOwner = new AskingTheOwner(faces)
+  final class AskingTheOwner(faces: okay.faces.Faces[fx.type]) {
+    def apply[R[_], Rest[_], A](p: A ! R)(implicit sp: Split[Consent, R, Rest], f: In[okay.faces.Face, Rest]): A ! Rest =
       handle[Consent, R, Rest, A, A](p, new Handler[Consent, Rest, A, A] {
         def ret(a: A) = pure(a)
         def op[X](op: Consent[X], k: X => A ! Rest) = op match {

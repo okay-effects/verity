@@ -4,9 +4,9 @@ import com.raquo.laminar.api.L._
 import okay.effects.{Sum, Void}
 import okay.effects.async.{Async, Asynchrony}
 import okay.effects.machine.Machine
-import okay.face.{Face, Faces, Pages}
-import okay.face.laminar.{LaminarFace, RemoteFace}
-import okay.face.rest.RestDomains
+import okay.faces.{Face, Faces, Pages}
+import okay.faces.laminar.{LaminarFace, RemoteFace}
+import okay.faces.rest.RestDomains
 import okay.http.{Browser, Fetch, Fetches, Request, Response}
 import okay.store.Stores
 import org.scalajs.dom
