@@ -35,7 +35,7 @@ object Audience {
 }
 
 /** the words and the handlers, over any implementation */
-class Domain[F <: Effects](implicit implementation: F) {
+class Domain[F <: Effects with Singleton](implicit implementation: F) {
   val fx: F = implementation
   import fx._
 

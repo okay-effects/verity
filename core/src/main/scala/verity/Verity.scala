@@ -13,7 +13,7 @@ import okay.face.{Action, Face, Faces, Marks, Navigation, Navigations, View}
  * the file is saved. No line of it knows a face: the terminal, the window, the test script and, later, an agent run it.
  */
 /** `today`, when known, tells an expiring or expired validity from one that holds */
-class Verity[F <: Effects](val faces: Faces[F], today: () => Option[okay.effects.shape.Day] = () => None) {
+class Verity[F <: Effects with Singleton](val faces: Faces[F], today: () => Option[okay.effects.shape.Day] = () => None) {
   import faces.fx._
   import faces.{choose, confirm, fill, fillOrCancel, offer, show}
   /** the domain and the navigation over the SAME implementation value, so one `In` serves all three */
