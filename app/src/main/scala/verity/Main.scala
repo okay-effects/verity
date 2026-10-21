@@ -3,7 +3,7 @@ package verity
 import okay.effects.{Sum, Void}
 import okay.effects.machine.Machine
 import okay.effects.world.Console
-import okay.face.{Face, Faces, Look, Paint, Pages}
+import okay.face.{Face, Faces, Paint, Pages}
 import okay.face.term.Ansi
 import okay.face.swing.SwingFace
 import okay.face.term.Terminal
@@ -15,7 +15,7 @@ import okay.store.jdbc.{Jdbcs, Sqlite}
 object Main {
   val faces: Faces[Machine.type] = new Faces[Machine.type]()(Machine)
   val agents = new Agents[Machine.type](faces)
-  val app = new Verity[Machine.type](faces)
+  val app = new Verity[Machine.type](faces, () => { val d = java.time.LocalDate.now(); Some(okay.effects.shape.Day(d.getYear, d.getMonthValue, d.getDayOfMonth)) })
   val jdbcs: Jdbcs[Machine.type] = new Jdbcs[Machine.type]()(Machine)
   import app.domain._
   import Machine._
@@ -82,7 +82,7 @@ object Main {
                     else storage(consenting(Nil)(policy(Audience.Agent("api"))(inner)))
       faces.dialogue[Unit, L](faces.steps[Unit, HF, L](program))
     }
-    val sessions = okay.face.rest.RestFace(faces).sessions[Unit, L](() => session()).service
+    val sessions = okay.face.rest.RestFace(faces).sessions[Unit, L](() => session(), vocabulary = Marking.marks.vocabulary).service
     // MCP over HTTP at /mcp: an agent's session, its own dialogue; with a stream accepted the owner's consent is asked by
     // elicitation as over stdio, the question parked between requests; without one, no secret is shown
     type LL[X] = Sum[L, okay.mcp.Link, X]
@@ -108,7 +108,7 @@ object Main {
     val filesServed = domains.serve[Files, LFi](Describes.files, "/files")
     def pages(req: okay.http.Request): Option[okay.http.Response ! L] = (req.method, req.path) match {
       case ("GET", "/") => Some(pure[okay.http.Response, L](okay.http.Response.html(Shell.page("Verity", if (mode == "app") "remote" else "local", new java.io.File(storage.journal).getName))))
-      case ("GET", "/okay.css") => Some(pure[okay.http.Response, L](okay.http.Response.ok(okay.face.Css(Look.default), "text/css; charset=utf-8")))
+      case ("GET", "/okay.css") => Some(pure[okay.http.Response, L](okay.http.Response.ok(okay.face.Css(Marking.look, Marking.dark), "text/css; charset=utf-8")))
       case ("GET", "/app.js") => Some(pure[okay.http.Response, L](Shell.script.fold(e => okay.http.Response.text(e, 503), js => okay.http.Response.ok(js, "application/javascript; charset=utf-8"))))
       case _ => None
     }
@@ -153,12 +153,12 @@ object Main {
       // Console is in the row for the terminal's sake; a window has none: the real console still answers it
       val io = new okay.effects.world.Io[Machine.type]()(Machine)
       face.window("Verity", faces.steps[Unit, CF, C](wired(storage, pages)).asInstanceOf[okay.face.Step[Unit, ({ type L[X] = X ! Void })#L] ! Void],
-        (_: Unit) => sys.exit(0), pages = Some((pages, (p: Any) => p.toString)), look = Some(Look.default))
+        (_: Unit) => sys.exit(0), pages = Some((pages, (p: Any) => p.toString)), look = Some(Marking.look))
     case rest =>
       val storage = new Storage(rest.headOption.getOrElse(defaultPath))
       val pages = new Pages[app.Place](app.Main)
       // colour at a terminal, plain in a pipe: the look is the same, the paint is the console's
-      val term = new Terminal[Machine.type](faces, if (System.console() != null) Ansi(Look.default) else Paint.none)
+      val term = new Terminal[Machine.type](faces, if (System.console() != null) Ansi(Marking.look) else Paint.none)
       pages.onChange(p => ())   // a terminal could print the place; the main screen says enough
       val result = Machine.run(term.io.realConsole(term.terminal[Unit, C](faces.steps[Unit, CF, C](wired(storage, pages)))))
       println(result.fold("bye")(_ => "bye"))

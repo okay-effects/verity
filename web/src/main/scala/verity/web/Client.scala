@@ -33,7 +33,7 @@ object Client {
  * from afar: each operation a call to the server's `/store` and `/files`, awaited through `Async` */
 object Local {
   val faces: Faces[Machine.type] = new Faces[Machine.type]()(Machine)
-  val app = new Verity[Machine.type](faces)
+  val app = new Verity[Machine.type](faces, () => { val d = new scala.scalajs.js.Date(); Some(okay.effects.shape.Day(d.getFullYear().toInt, d.getMonth().toInt + 1, d.getDate().toInt)) })
   val asynchrony: Asynchrony[Machine.type] = new Asynchrony[Machine.type]()(Machine, queue)
   val rest: RestDomains[Machine.type] = new RestDomains[Machine.type]()(Machine)
   val face = new LaminarFace[Machine.type](faces)

@@ -125,6 +125,13 @@ fields masked as `•••• 4821`), with actions `find(text, tag?)`, `add`, `
 
 - `open(record)`: the record's fields (`Masked` for secrets), its validity, tags, note; actions `copy(field)`,
   `reveal(field)`, `revise`, `history`, `retire(reason?)`, `done`. `copy` of a secret field goes through `Reveal`.
+- THE MARKS (2026-10-21, `Mark` in Model.scala, typed by okay-faces' `Marks[M]`): verity's own words on its screens —
+  `kind` on a card's heading, `secret` on a masked field, `revealed` on a secret shown by consent, and on a validity
+  `valid`, `expiring` (ends within thirty days) or `expired`, told from `today` when the application knows it (the JVM
+  and the browser do; a test fixes the day). `Marking.look` dresses them for the CSS, Swing and the terminal: expired
+  in the problem tone, expiring in the warning tone, a revealed secret bold on a surface. `Marking.marks.vocabulary`
+  is told to an agent in the MCP instructions and `face://marks`, served at `/sessions/marks` on the API, and makes the
+  agent's Markdown say `**kind:** Passport`, `secret: •••• 3456`, `revealed: AB123456` — the meaning, not only the text.
 - `add`: `choose` a kind (built-in and defined), then `ask` the form from its `Shape`, then context/validity/tags, then
   `confirm` the summary. A user-defined kind: `define` asks the kind's name and its fields (name, type, secret) and
   builds the `Schema` — the meta-schema's form.

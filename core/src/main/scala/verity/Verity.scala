@@ -4,7 +4,7 @@ import okay.effects.Effects
 import okay.effects.json.Json
 import okay.effects.shape.{Schema, Shape}
 import okay.effects.shape.Shape.{bool, choice, date, field, record, text}
-import okay.face.{Action, Face, Faces, Navigation, Navigations, View}
+import okay.face.{Action, Face, Faces, Marks, Navigation, Navigations, View}
 
 /**
  * THE SCENARIO: a dialogue in `Face + Store + Reveal + Consent + Clipboard + Files + Navigation[Place]`. The main screen
@@ -12,7 +12,8 @@ import okay.face.{Action, Face, Faces, Navigation, Navigations, View}
  * its history read; a record is added by choosing a kind and filling the kind's form; a kind of one's own is defined;
  * the file is saved. No line of it knows a face: the terminal, the window, the test script and, later, an agent run it.
  */
-class Verity[F <: Effects](val faces: Faces[F]) {
+/** `today`, when known, tells an expiring or expired validity from one that holds */
+class Verity[F <: Effects](val faces: Faces[F], today: () => Option[okay.effects.shape.Day] = () => None) {
   import faces.fx._
   import faces.{choose, confirm, fill, fillOrCancel, offer, show}
   /** the domain and the navigation over the SAME implementation value, so one `In` serves all three */
@@ -48,15 +49,25 @@ class Verity[F <: Effects](val faces: Faces[F]) {
   def masked(v: Json): String = { val s = plain(v); if (s.length <= 4) "••••" else "•••• " + s.takeRight(4) }
   def period(p: Period): String = (p.from, p.to) match { case (None, None) => ""; case (f, t) => f.fold("")(_.toString) + " – " + t.fold("")(_.toString) }
   def context(c: Context): String = (c.language.toList ++ c.country.toList).mkString(" ")
+  val marks: Marks[Mark] = Marking.marks
+  /** the period, marked: `valid`, or `expiring` within thirty days of its end, or `expired` — when today is known */
+  def validity(p: Period): View = {
+    val mark = (p.to, today()) match {
+      case (Some(to), Some(now)) if to < now => Mark.Expired
+      case (Some(to), Some(now)) if Marking.ordinal(to) - Marking.ordinal(now) <= 30 => Mark.Expiring
+      case _ => Mark.Valid
+    }
+    marks.mark(mark, View.text(period(p)))
+  }
 
   def listing(kinds: Map[KindId, Kind], rs: List[Record]): View =
     if (rs.isEmpty) View.stack(View.heading("Verity"), View.text("Nothing kept yet. Add a record."))
     else View.stack(View.heading("Verity"), View.Table(Vector("#", "kind", "summary", "context", "valid", "tags"),
       rs.zipWithIndex.map { case (r, i) => Vector(View.text((i + 1).toString), View.text(kinds.get(r.kind).fold(r.kind.value)(_.name)),
-        View.text(kinds.get(r.kind).fold("")(summary(_, r))), View.text(context(Extra.context(r))), View.text(period(Extra.valid(r))), View.text(r.tags.toList.sorted.mkString(" "))) }.toVector))
-  def card(k: Kind, r: Record): View = View.stack(View.heading(k.name, 2),
-    View.Fields(fieldsOf(k).map(f => f.label.getOrElse(f.name) -> r.fields.get(f.name).fold[View](View.Empty)(v => if (k.secret(f.name)) View.Masked(masked(v)) else View.text(plain(v))))),
-    View.fields("context" -> View.text(context(Extra.context(r))), "valid" -> View.text(period(Extra.valid(r))), "tags" -> View.text(r.tags.toList.sorted.mkString(" ")),
+        View.text(kinds.get(r.kind).fold("")(summary(_, r))), View.text(context(Extra.context(r))), validity(Extra.valid(r)), View.text(r.tags.toList.sorted.mkString(" "))) }.toVector))
+  def card(k: Kind, r: Record): View = View.stack(marks.mark(Mark.Kind, View.heading(k.name, 2)),
+    View.Fields(fieldsOf(k).map(f => f.label.getOrElse(f.name) -> r.fields.get(f.name).fold[View](View.Empty)(v => if (k.secret(f.name)) marks.mark(Mark.Secret, View.Masked(masked(v))) else View.text(plain(v))))),
+    View.fields("context" -> View.text(context(Extra.context(r))), "valid" -> validity(Extra.valid(r)), "tags" -> View.text(r.tags.toList.sorted.mkString(" ")),
       "note" -> View.text(r.note.getOrElse("")), "version" -> View.text(r.version.value)))
   def fieldsOf(k: Kind): Vector[Schema.Field] = k.schema match { case Schema.Record(fs) => fs; case Schema.Described(Schema.Record(fs), _, _) => fs; case _ => Vector.empty }
 
@@ -159,7 +170,7 @@ class Verity[F <: Effects](val faces: Faces[F]) {
             case None => show[R](View.problem(s"$fld not shown"))
           }.flatMap(_ => opened[R](path, id))
           case RevealIt(fld) => reveal[R](id, fld).flatMap {
-            case Some(v) => show[R](View.fields(fld -> View.text(v)))
+            case Some(v) => show[R](View.fields(fld -> (if (k.secret(fld)) marks.mark(Mark.Revealed, View.text(v)) else View.text(v))))
             case None => show[R](View.problem(s"$fld not shown"))
           }.flatMap(_ => opened[R](path, id))
           case ReviseIt => revising[R](k, r).flatMap(_ => opened[R](path, id))

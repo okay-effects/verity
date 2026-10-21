@@ -58,6 +58,9 @@ class AgentSuite extends munit.FunSuite {
     assertEquals(asked.size, 2)
     assert(asked.head.contains("An agent asks for a secret") && asked.head.contains("claude"), asked.head)
     assert(texts.exists(_.contains("number copied")), texts.mkString("\n"))
+    // the marks: told in the instructions, served as a resource; the card's Markdown names the kind and the secret
+    assert(texts.head.contains("Marks on views, and what they mean") && texts.head.contains("revealed: a secret shown in the clear"), texts.head)
+    assert(texts.exists(t => t.contains("**kind:** Passport") && t.contains("secret: •••• 3456")), texts.mkString("\n"))
     assert(texts.exists(_.contains("number not shown")), texts.mkString("\n"))
   }
 }

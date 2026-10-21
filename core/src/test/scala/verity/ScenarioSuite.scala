@@ -12,7 +12,7 @@ import okay.face.test.Plays
 abstract class ScenarioChecks(val fx0: Runner, name: String) extends munit.FunSuite {
   val faces: Faces[fx0.type] = new Faces[fx0.type]()(fx0)
   val plays: Plays[fx0.type] = new Plays[fx0.type]()(fx0)
-  val app = new Verity[fx0.type](faces)
+  val app = new Verity[fx0.type](faces, () => Some(okay.effects.shape.Day(2026, 10, 21)))
   import fx0._
   import app.domain._
   import plays._
@@ -67,8 +67,21 @@ abstract class ScenarioChecks(val fx0: Runner, name: String) extends munit.FunSu
     assertEquals(damaged, Nil); assertEquals(events.size, out.vault.events.size)
     // what was shown: the list masks the number, the card masks it, the reveal shows the holder
     assert(out.views.exists { case View.Group(_, cs) => cs.exists { case View.Table(_, rows) => rows.exists(_.exists { case View.Text(t) => t.contains("•••• 3456"); case _ => false }); case _ => false }; case _ => false }, out.views.mkString("\n"))
-    assert(out.views.contains(View.fields("holder" -> View.text("S."))))
+    assert(out.views.contains(View.fields("holder" -> View.text("S."))))   // holder is no secret: shown unmarked
     assertEquals(out.pages.head, app.Main)
+    // the marks, read back as the type: the card's heading is the kind, the number a secret, the validity holds (no end)
+    val card = out.views.collectFirst { case View.Group(_, cs) if cs.headOption.flatMap(app.marks.on).contains(Mark.Kind) => cs }.getOrElse(fail("no card"))
+    assert(card.exists { case View.Fields(rows) => rows.exists { case (_, v) => app.marks.on(v).contains(Mark.Secret) }; case _ => false }, card.toString)
+    assert(card.exists { case View.Fields(rows) => rows.exists { case ("valid", v) => app.marks.on(v).contains(Mark.Valid); case _ => false }; case _ => false }, card.toString)
+  }
+  test(s"$name: a validity over is marked expired, one ending within thirty days expiring; a revealed secret is marked") {
+    val out = play(Script.of(
+      Chosen.plain("add"), Chosen.plain("passport"), Chosen("submit", passport), Chosen("submit", obj("country" -> Str("UA"), "to" -> Str("2026-11-15"))),
+      Chosen.plain("add"), Chosen.plain("passport"), Chosen("submit", passport), Chosen("submit", obj("country" -> Str("UA"), "to" -> Str("2025-01-01"))),
+      Chosen("open", obj("n" -> Str("1"))), Chosen("reveal", obj("field" -> Str("number"))), Chosen.plain("done"), Chosen.plain("quit"), Chosen.plain("no")))
+    val cells = out.views.collect { case View.Group(_, cs) => cs.collect { case View.Table(_, rows) => rows.flatMap(_.flatMap(app.marks.on)) }.flatten }.flatten
+    assert(cells.contains(Mark.Expiring) && cells.contains(Mark.Expired), cells.toString)
+    assert(out.views.contains(View.fields("number" -> app.marks.mark(Mark.Revealed, View.text("AB123456")))), out.views.mkString("\n"))
   }
   test(s"$name: a kind of one's own, a record of it, a find by tag, a retire; unsaved changes asked about at quit") {
     val spec = obj("name" -> Str("UK NI number"), "fields" -> Json.arr(obj("name" -> Str("value"), "label" -> Str("Number"), "kind" -> Str("text"), "secret" -> Json.Bool(true))), "contextual" -> Json.Bool(false))

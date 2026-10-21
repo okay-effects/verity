@@ -59,3 +59,51 @@ object Vault {
   val empty: Vault = okay.store.Kept.empty(Kinds.builtIn)
   def of(events: List[Event]): Vault = okay.store.Kept.of(events, Kinds.builtIn)
 }
+
+/** VERITY'S OWN WORDS on its screens — what a part MEANS beyond what it is. A face dresses them by `Marking.look`;
+ * an agent is told them by `Marking.marks.vocabulary`; a test reads them back as the type */
+sealed trait Mark
+object Mark {
+  /** the kind of a record, as a card's heading */
+  case object Kind extends Mark
+  /** a secret field of a record, masked */
+  case object Secret extends Mark
+  /** a secret shown in the clear, by the owner's consent */
+  case object Revealed extends Mark
+  /** the period a record holds */
+  case object Valid extends Mark
+  /** a validity that ends within thirty days */
+  case object Expiring extends Mark
+  /** a validity that is over */
+  case object Expired extends Mark
+}
+object Marking {
+  import okay.face.{Look, Marks, Rule, Style, Theme, Tone}
+  val marks: Marks[Mark] = Marks.of(Shape.derived[Mark]).explained(
+    Mark.Kind -> "the kind of the record: Passport, Address, Name…",
+    Mark.Secret -> "a secret field of the record, masked; shown only with the owner's consent",
+    Mark.Revealed -> "a secret shown in the clear with the owner's consent; the reveal is written down",
+    Mark.Valid -> "the period the record holds, from – to",
+    Mark.Expiring -> "the record's validity ends within thirty days",
+    Mark.Expired -> "the record's validity is over")
+  /** the look: the library's style, and a rule per mark */
+  val style: Style = Style.default
+    .set(marks.role(Mark.Kind), Rule(color = Some(Tone.Muted)))
+    .set(marks.role(Mark.Secret), Rule(mono = true))
+    .set(marks.role(Mark.Revealed), Rule(bold = true, mono = true, background = Some(Tone.Surface)))
+    .set(marks.role(Mark.Valid), Rule(color = Some(Tone.Muted)))
+    .set(marks.role(Mark.Expiring), Rule(color = Some(Tone.Warning), bold = true))
+    .set(marks.role(Mark.Expired), Rule(color = Some(Tone.Problem), bold = true))
+  val look: Look = Look(Theme.light, style)
+  val dark: Look = Look(Theme.dark, style)
+
+  /** days since 1970-01-01, for the thirty days before an end — our own, as `Day` is, so the browser needs no java.time */
+  def ordinal(d: Day): Long = {
+    val y = if (d.month <= 2) d.year - 1 else d.year
+    val era = (if (y >= 0) y else y - 399) / 400
+    val yoe = y - era * 400
+    val doy = (153 * (if (d.month > 2) d.month - 3 else d.month + 9) + 2) / 5 + d.day - 1
+    val doe = yoe * 365 + yoe / 4 - yoe / 100 + doy
+    era * 146097L + doe - 719468L
+  }
+}
