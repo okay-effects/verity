@@ -149,7 +149,7 @@ object Main {
     case "swing" :: rest =>
       val storage = new Storage(rest.headOption.getOrElse(defaultPath))
       val pages = new Pages[app.Place](app.Main)
-      val face = new SwingFace[Machine.type](faces)
+      val face = new SwingFace[Machine.type]()(faces)
       // Console is in the row for the terminal's sake; a window has none: the real console still answers it
       val io = new okay.effects.world.Io[Machine.type]()(Machine)
       face.window("Verity", faces.steps[Unit, CF, C](wired(storage, pages)).asInstanceOf[okay.face.Step[Unit, ({ type L[X] = X ! Void })#L] ! Void],
