@@ -158,7 +158,7 @@ object Main {
       val storage = new Storage(rest.headOption.getOrElse(defaultPath))
       val pages = new Pages[app.Place](app.Main)
       // colour at a terminal, plain in a pipe: the look is the same, the paint is the console's
-      val term = new Terminal[Machine.type](faces, if (System.console() != null) Ansi(Marking.look) else Paint.none)
+      val term = new Terminal[Machine.type](if (System.console() != null) Ansi(Marking.look) else Paint.none)(faces)
       pages.onChange(p => ())   // a terminal could print the place; the main screen says enough
       val result = Machine.run(term.io.realConsole(term.terminal[Unit, C](faces.steps[Unit, CF, C](wired(storage, pages)))))
       println(result.fold("bye")(_ => "bye"))
