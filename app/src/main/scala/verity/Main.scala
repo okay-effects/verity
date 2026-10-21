@@ -82,7 +82,7 @@ object Main {
                     else storage(consenting(Nil)(policy(Audience.Agent("api"))(inner)))
       faces.dialogue[Unit, L](faces.steps[Unit, HF, L](program))
     }
-    val sessions = okay.face.rest.RestFace(faces).sessions[Unit, L](() => session(), vocabulary = Marking.marks.vocabulary).service
+    val sessions = okay.face.rest.RestFace.over(faces).sessions[Unit, L](() => session(), vocabulary = Marking.marks.vocabulary).service
     // MCP over HTTP at /mcp: an agent's session, its own dialogue; with a stream accepted the owner's consent is asked by
     // elicitation as over stdio, the question parked between requests; without one, no secret is shown
     type LL[X] = Sum[L, okay.mcp.Link, X]
@@ -113,7 +113,7 @@ object Main {
       case _ => None
     }
     val service: okay.http.Request => okay.http.Response ! L = mode match {
-      case "web" => okay.face.html.HtmlFace(faces).pages[Unit, L](() => session(), "Verity").service
+      case "web" => okay.face.html.HtmlFace.over(faces).pages[Unit, L](() => session(), "Verity").service
       case "app" => req => pages(req).getOrElse(sessions(req))
       case "browser" => req => pages(req).getOrElse(
         if (req.path.startsWith("/store")) storage(storeServed.service(req))

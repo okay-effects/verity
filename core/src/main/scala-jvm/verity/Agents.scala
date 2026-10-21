@@ -10,7 +10,7 @@ import okay.mcp.Link
  * is an agent, so the policy over `Reveal` asks the OWNER through the client: `Consent` by elicitation */
 class Agents[F <: Runner with Singleton](val faces: Faces[F]) {
   import faces.fx._
-  val face: McpFace[F, faces.type] = McpFace(faces)
+  val face: McpFace[F, faces.type] = McpFace.over(faces)
   val domain: Domain[faces.fx.type] = new Domain[faces.fx.type]()(faces.fx)
 
   /** the owner's consent asked through the client (`elicitation/create`): a yes or no with the record and the field named */
