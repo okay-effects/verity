@@ -170,8 +170,9 @@ In order of what stresses the design most:
    `Kept` with those kinds. `Event.Revealed` is `Event.Accessed(id, field, by, at)`; the journal's header is
    `{"format":"verity","version":1,...}`.
 9. MCP over HTTP (2026-10-21): the `api` mode serves `/mcp` — okay-faces' streamable-HTTP transport, a session per
-   agent with its own dialogue, the single tool `act` since no event stream carries `list_changed`, and no consent
-   can be asked over it, so the policy refuses every secret and the server's instructions say so.
+   agent with its own dialogue and the single tool `act`; when the client accepts an event stream the owner's consent
+   is asked by elicitation, the question parked between requests, as over stdio; without one the policy refuses
+   every secret and the server's instructions say so.
 8. The store on SQLite (2026-10-20): a `.db` file in any mode is okay-store's `jdbc` handler instead of `keeping` over
    the journal file; `Main.Storage` is the one store per process, shared by every session, and the dialogue's Save
    writes `<db>.jsonl` beside it as the journal's backup. The dialogue does not know which; the results of every mode

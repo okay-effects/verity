@@ -83,11 +83,22 @@ object Main {
       faces.dialogue[Unit, L](faces.steps[Unit, HF, L](program))
     }
     val sessions = okay.face.rest.RestFace(faces).sessions[Unit, L](() => session()).service
-    // MCP over HTTP at /mcp: an agent's session, its own dialogue, no consent to ask over this transport so no secret shown
-    val mcp = agents.face.http.service[L](() => {
+    // MCP over HTTP at /mcp: an agent's session, its own dialogue; with a stream accepted the owner's consent is asked by
+    // elicitation as over stdio, the question parked between requests; without one, no secret is shown
+    type LL[X] = Sum[L, okay.mcp.Link, X]
+    type LLF[X] = Sum[LL, Face, X]
+    type LN[X] = Sum[LLF, app.Nav, X]
+    type LNF[X] = Sum[LN, Files, X]
+    type LNFC[X] = Sum[LNF, Clipboard, X]
+    type LNFCR[X] = Sum[LNFC, Reveal, X]
+    type LNFCRC[X] = Sum[LNFCR, Consent, X]
+    type LAll[X] = Sum[LNFCRC, Store, X]
+    implicit val needsL: app.Needs[LAll] = app.Needs[LAll]
+    val mcp = agents.face.http.service[L](stream => {
       val pages = new Pages[app.Place](app.Main)
-      val program = storage(consenting(Nil)(policy(Audience.Agent("mcp-http"))(clipboardTo(SystemClipboard.put)(storage.onDisk(app.navs.memory(pages)(app.run[HAll](storage.journal)))))))
-      agents.server[Unit, L](faces.steps[Unit, HF, L](program), elicitation = false, singleTool = true)
+      val inner = clipboardTo(SystemClipboard.put)(storage.onDisk(app.navs.memory(pages)(app.run[LAll](storage.journal))))
+      val program = if (stream) storage(agents.consentByElicitation(policy(Audience.Agent("mcp-http"))(inner))) else storage(consenting(Nil)(policy(Audience.Agent("mcp-http"))(inner)))
+      agents.server[Unit, LL](faces.steps[Unit, LLF, LL](program), elicitation = stream, singleTool = true)
     }, "/mcp").service
     // `browser`: the dialogue runs in the page; the server is the storage and the file, as REST domains
     type LS[X] = Sum[L, Store, X]
