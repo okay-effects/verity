@@ -14,7 +14,7 @@ import okay.store.jdbc.{Jdbcs, Sqlite}
  * is the journal, ~/.verity/verity.jsonl by default; a `.db` file is a SQLite database instead (`Storage`) */
 object Main {
   val faces: Faces[Machine.type] = new Faces[Machine.type]()(Machine)
-  val agents = new Agents[Machine.type](faces)
+  val agents = new Agents[Machine.type]()(Machine)
   val app = new Verity[Machine.type](faces, () => { val d = java.time.LocalDate.now(); Some(okay.effects.shape.Day(d.getYear, d.getMonthValue, d.getDayOfMonth)) })
   val jdbcs: Jdbcs[Machine.type] = new Jdbcs[Machine.type]()(Machine)
   import app.domain._
@@ -82,7 +82,7 @@ object Main {
                     else storage(consenting(Nil)(policy(Audience.Agent("api"))(inner)))
       faces.dialogue[Unit, L](faces.steps[Unit, HF, L](program))
     }
-    val sessions = okay.faces.rest.RestFace.over(faces).sessions[Unit, L](() => session(), vocabulary = Marking.marks.vocabulary).service
+    val sessions = new okay.faces.rest.RestFace[Machine.type]()(Machine).sessions[Unit, L](() => session(), vocabulary = Marking.marks.vocabulary).service
     // MCP over HTTP at /mcp: an agent's session, its own dialogue; with a stream accepted the owner's consent is asked by
     // elicitation as over stdio, the question parked between requests; without one, no secret is shown
     type LL[X] = Sum[L, okay.mcp.Link, X]
@@ -113,7 +113,7 @@ object Main {
       case _ => None
     }
     val service: okay.http.Request => okay.http.Response ! L = mode match {
-      case "web" => okay.faces.html.HtmlFace.over(faces).pages[Unit, L](() => session(), "Verity").service
+      case "web" => new okay.faces.html.HtmlFace[Machine.type]()(Machine).pages[Unit, L](() => session(), "Verity").service
       case "app" => req => pages(req).getOrElse(sessions(req))
       case "browser" => req => pages(req).getOrElse(
         if (req.path.startsWith("/store")) storage(storeServed.service(req))
@@ -149,7 +149,7 @@ object Main {
     case "swing" :: rest =>
       val storage = new Storage(rest.headOption.getOrElse(defaultPath))
       val pages = new Pages[app.Place](app.Main)
-      val face = new SwingFace[Machine.type]()(faces)
+      val face = new SwingFace[Machine.type]()(Machine)
       // Console is in the row for the terminal's sake; a window has none: the real console still answers it
       val io = new okay.effects.world.Io[Machine.type]()(Machine)
       face.window("Verity", faces.steps[Unit, CF, C](wired(storage, pages)).asInstanceOf[okay.faces.Step[Unit, ({ type L[X] = X ! Void })#L] ! Void],
@@ -158,7 +158,7 @@ object Main {
       val storage = new Storage(rest.headOption.getOrElse(defaultPath))
       val pages = new Pages[app.Place](app.Main)
       // colour at a terminal, plain in a pipe: the look is the same, the paint is the console's
-      val term = new Terminal[Machine.type](if (System.console() != null) Ansi(Marking.look) else Paint.none)(faces)
+      val term = new Terminal[Machine.type](if (System.console() != null) Ansi(Marking.look) else Paint.none)(Machine)
       pages.onChange(p => ())   // a terminal could print the place; the main screen says enough
       val result = Machine.run(term.io.realConsole(term.terminal[Unit, C](faces.steps[Unit, CF, C](wired(storage, pages)))))
       println(result.fold("bye")(_ => "bye"))

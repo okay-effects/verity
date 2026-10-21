@@ -10,7 +10,7 @@ import okay.mcp.{Link, Rpc}
 /** THE AGENT'S FACE of verity over a scripted link: the screens as tools, an add, a copy that asks the owner */
 class AgentSuite extends munit.FunSuite {
   val faces: Faces[Machine.type] = new Faces[Machine.type]()(Machine)
-  val agents = new Agents[Machine.type](faces)
+  val agents = new Agents[Machine.type]()(Machine)
   val app = new Verity[Machine.type](faces)
   import Machine._
   import app.domain._
