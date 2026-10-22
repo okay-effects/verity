@@ -151,10 +151,12 @@ object Main {
       val storage = new Storage(rest.headOption.getOrElse(defaultPath))
       val pages = new Pages[app.Place](app.Main)
       val face = new SwingFace[Machine.type]()(Machine)
-      // Console is in the row for the terminal's sake; a window has none: the real console still answers it
+      // Console is in the row for the terminal's sake; a window has none: the real console answers it, each rest run so
       val io = new okay.effects.world.Io[Machine.type]()(Machine)
-      face.window("Verity", faces.steps[Unit, CF, C](wired(storage, pages)).asInstanceOf[okay.faces.Step[Unit, ({ type L[X] = X ! Void })#L] ! Void],
-        (_: Unit) => sys.exit(0), pages = Some((pages, (p: Any) => p.toString)), settings = SwingFace.Settings(look = Some(Marking.look)))
+      val viaConsole = new face.Lower[C] { def apply[X](p: X ! C): X = Machine.run(io.realConsole[C, Pure, X](p)) }
+      face.windowIn[Unit, C]("Verity", faces.steps[Unit, CF, C](wired(storage, pages)), viaConsole,
+        (_: Unit) => sys.exit(0), pages = Some((pages, (p: Any) => p.toString)),
+        settings = SwingFace.Settings(look = Some(Marking.look)))
     case rest =>
       val storage = new Storage(rest.headOption.getOrElse(defaultPath))
       val pages = new Pages[app.Place](app.Main)
