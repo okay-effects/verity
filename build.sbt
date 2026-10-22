@@ -7,8 +7,8 @@ ThisBuild / version := "0.1.0-SNAPSHOT"
 ThisBuild / scalaVersion := scala3
 ThisBuild / licenses := List("Apache-2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0.txt"))
 ThisBuild / resolvers += "okay-effects" at "https://okay-effects.github.io/okay-simple/maven"
-/** okay-simple's and okay-faces' snapshots, published locally until released */
-val okayEffects = "0.1.1-SNAPSHOT"
+/** okay-simple's release; okay-faces' snapshot, published locally until released */
+val okayEffects = "0.1.1"
 val okayFaces = "0.1.0-SNAPSHOT"
 val okayHttp = "0.1.0-SNAPSHOT"
 val okayStore = "0.1.0-SNAPSHOT"
