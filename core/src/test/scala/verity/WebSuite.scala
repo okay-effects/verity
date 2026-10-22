@@ -23,17 +23,18 @@ class WebSuite extends munit.FunSuite {
   type HNFCRC[X] = Sum[HNFCR, Consent, X]
   type HAll[X] = Sum[HNFCRC, Store, X]
   var n = 0
-  def session(): faces.Dialogue[(Vault, (List[String], (Map[String, List[String]], Unit))), L] = {
+  def session(): okay.faces.Session[Machine.type, (Vault, (List[String], (Map[String, List[String]], Unit))), L] = {
     implicit val needs: app.Needs[HAll] = app.Needs[HAll]
     val pages = new Pages[app.Place](app.Main)
     val program = store(Vault.empty, () => { n += 1; s"id$n" }, () => 1000L)(askingTheOwner(faces)(policy(Audience.Owner)(clipboardRecording(filesInMemory(Map.empty)(app.navs.memory(pages)(app.run[HAll]("v.jsonl")))))))
-    faces.dialogue[(Vault, (List[String], (Map[String, List[String]], Unit))), L](faces.steps[(Vault, (List[String], (Map[String, List[String]], Unit))), HF, L](program))
+    faces.session[(Vault, (List[String], (Map[String, List[String]], Unit))), L](faces.steps[(Vault, (List[String], (Map[String, List[String]], Unit))), HF, L](program))
   }
   def form(path: String, kv: (String, String)*): Request = Request.post(path, Query.print(kv.toList.groupBy(_._1).map { case (k, vs) => k -> vs.map(_._2) }), "application/x-www-form-urlencoded")
 
   test("in a browser: the list, add a passport through the pages, the list with the number masked, the card") {
     val html = new okay.faces.html.HtmlFace[Machine.type]()(Machine)
-    val pages = html.pages[(Vault, (List[String], (Map[String, List[String]], Unit))), L](() => session(), "Verity", ids = okay.faces.Sessions.counting("s"))
+    val pages = html.pages[(Vault, (List[String], (Map[String, List[String]], Unit))), L](() => session(), "Verity",
+      okay.faces.html.HtmlFace.Settings(ids = okay.faces.Sessions.counting("s")))
     val rs = Machine.run(https.scripted(List(Request.get("/"), Request.get("/s/s1"),
       form("/s/s1/act/add"), form("/s/s1/act/passport"),
       form("/s/s1/act/submit", "country" -> "UA", "number" -> "AB123456", "issued" -> "2020-01-02", "expires" -> "2030-01-01", "holder" -> "S."),
@@ -46,7 +47,8 @@ class WebSuite extends munit.FunSuite {
   }
   test("as an API: a session's resource with the actions as links; the add through links") {
     val rest = new okay.faces.rest.RestFace[Machine.type]()(Machine)
-    val api = rest.sessions[(Vault, (List[String], (Map[String, List[String]], Unit))), L](() => session(), ids = okay.faces.Sessions.counting("s"))
+    val api = rest.sessions[(Vault, (List[String], (Map[String, List[String]], Unit))), L](() => session(),
+      okay.faces.rest.RestFace.Settings(ids = okay.faces.Sessions.counting("s")))
     val rs = Machine.run(https.scripted(List(Request("POST", "/sessions"), Request("POST", "/sessions/s1/act/add"), Request("POST", "/sessions/s1/act/passport"),
       Request.json("POST", "/sessions/s1/act/submit", obj("country" -> Str("UA"), "number" -> Str("AB123456"), "issued" -> Str("2020-01-02"), "expires" -> Str("2030-01-01"), "holder" -> Str("S."))),
       Request.json("POST", "/sessions/s1/act/submit", obj("tags" -> Str("travel"))), Request.get("/sessions/s1")))(https.serve[L](api.service)))._1

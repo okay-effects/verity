@@ -74,15 +74,16 @@ object Main {
     val https = new Https[Machine.type]()(Machine)
     val jdk = new JdkHttp[Machine.type]()(Machine)
     val storage = new Storage(path)
-    def session(): faces.Dialogue[Unit, L] = {
+    def session(): okay.faces.Session[Machine.type, Unit, L] = {
       // each visitor: the one storage, the owner at their own face (web, app) or a program with no consent (api)
       val pages = new Pages[app.Place](app.Main)
       val inner = clipboardTo(SystemClipboard.put)(storage.onDisk(app.navs.memory(pages)(app.run[HAll](storage.journal))))
       val program = if (mode != "api") storage(askingTheOwner(faces)(policy(Audience.Owner)(inner)))
                     else storage(consenting(Nil)(policy(Audience.Agent("api"))(inner)))
-      faces.dialogue[Unit, L](faces.steps[Unit, HF, L](program))
+      faces.session[Unit, L](faces.steps[Unit, HF, L](program))
     }
-    val sessions = new okay.faces.rest.RestFace[Machine.type]()(Machine).sessions[Unit, L](() => session(), vocabulary = Marking.marks.vocabulary).service
+    val sessions = new okay.faces.rest.RestFace[Machine.type]()(Machine).sessions[Unit, L](() => session(),
+      okay.faces.rest.RestFace.Settings(vocabulary = Marking.marks.vocabulary)).service
     // MCP over HTTP at /mcp: an agent's session, its own dialogue; with a stream accepted the owner's consent is asked by
     // elicitation as over stdio, the question parked between requests; without one, no secret is shown
     type LL[X] = Sum[L, okay.mcp.Link, X]
@@ -153,12 +154,13 @@ object Main {
       // Console is in the row for the terminal's sake; a window has none: the real console still answers it
       val io = new okay.effects.world.Io[Machine.type]()(Machine)
       face.window("Verity", faces.steps[Unit, CF, C](wired(storage, pages)).asInstanceOf[okay.faces.Step[Unit, ({ type L[X] = X ! Void })#L] ! Void],
-        (_: Unit) => sys.exit(0), pages = Some((pages, (p: Any) => p.toString)), look = Some(Marking.look))
+        (_: Unit) => sys.exit(0), pages = Some((pages, (p: Any) => p.toString)), settings = SwingFace.Settings(look = Some(Marking.look)))
     case rest =>
       val storage = new Storage(rest.headOption.getOrElse(defaultPath))
       val pages = new Pages[app.Place](app.Main)
       // colour at a terminal, plain in a pipe: the look is the same, the paint is the console's
-      val term = new Terminal[Machine.type](if (System.console() != null) Ansi(Marking.look) else Paint.none)(Machine)
+      val term = new Terminal[Machine.type](Terminal.Settings(paint =
+        if (System.console() != null) Ansi(Marking.look) else Paint.none))(Machine)
       pages.onChange(p => ())   // a terminal could print the place; the main screen says enough
       val result = Machine.run(term.io.realConsole(term.terminal[Unit, C](faces.steps[Unit, CF, C](wired(storage, pages)))))
       println(result.fold("bye")(_ => "bye"))
