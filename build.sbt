@@ -7,10 +7,12 @@ ThisBuild / version := "0.1.0-SNAPSHOT"
 ThisBuild / scalaVersion := scala3
 ThisBuild / licenses := List("Apache-2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0.txt"))
 ThisBuild / resolvers += "okay-effects" at "https://okay-effects.github.io/okay-simple/maven"
-/** okay-simple's release; okay-faces' snapshot, published locally until released */
+ThisBuild / resolvers ++= Seq("okay-http" at "https://okay-effects.github.io/okay-http/maven",
+  "okay-mcp" at "https://okay-effects.github.io/okay-mcp/maven")
+/** okay-simple's, okay-http's and okay-mcp's releases; okay-faces' and okay-store's snapshots, published locally */
 val okayEffects = "0.1.1"
 val okayFaces = "0.1.0-SNAPSHOT"
-val okayHttp = "0.1.0-SNAPSHOT"
+val okayHttp = "0.1.0"
 val okayStore = "0.1.0-SNAPSHOT"
 
 def crossBuilt: Seq[Def.Setting[?]] = Seq(
@@ -33,7 +35,7 @@ lazy val core = crossProject(JVMPlatform, JSPlatform).crossType(CrossType.Pure).
   .jvmSettings(
     Compile / unmanagedSourceDirectories += baseDirectory.value.getParentFile / "src" / "main" / "scala-jvm",
     libraryDependencies ++= Seq(
-      "io.github.okay-effects" %% "okay-mcp" % "0.1.0-SNAPSHOT",
+      "io.github.okay-effects" %% "okay-mcp" % "0.1.0",
       "io.github.okay-effects" %% "okay-faces-mcp" % okayFaces,
       "io.github.okay-effects" %% "okay-faces-html" % okayFaces,
       "io.github.okay-effects" %% "okay-faces-test" % okayFaces % Test,
