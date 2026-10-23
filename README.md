@@ -7,7 +7,7 @@ the form for you, with your consent each time.
 ```
 sbt "app/run"                 # at the terminal, ~/.verity/verity.jsonl
 sbt "app/run my.jsonl"        # another file
-sbt "app/run my.db"           # a SQLite database instead of the file (okay-store-jdbc); Save writes my.db.jsonl beside it as a backup — every mode takes a .db
+sbt "app/run my.db"           # a SQLite database instead of the file (okay-store-jdbc); every change also written to my.db.jsonl beside it as a backup — every mode takes a .db
 sbt "app/run swing my.jsonl"  # in a window
 sbt "app/run mcp my.jsonl"    # for an agent, MCP over stdio: the same screens as tools, a secret only with your consent
 sbt "app/run web 8080 my.jsonl"  # in a browser, pages from the server, no script: http://127.0.0.1:8080/

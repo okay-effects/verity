@@ -108,7 +108,7 @@ sealed trait Files[X]      // Open(path): Journal, Save(path, journal), Merge(pa
 The scenario is a program in `Face + Vault + Reveal + Consent + Clipboard + Files`.
 
 - `Vault`'s handler is a stateful handler over the folded journal, handled INSIDE `Face` (so the face's back restores
-  the vault's state in memory; the file is written by `Save`, an explicit action).
+  the vault's state in memory; the file is written after every change, see the scenario).
 - `Reveal` is a separate effect precisely so that a POLICY can sit over it: an interceptor (`around`) that, per
   audience, passes, asks `Consent`, or refuses, and performs `Vault.Add(Revealed(...))` for the audit. The terminal's
   policy passes for the owner; MCP's asks consent for every secret field and never caches it.
@@ -121,7 +121,7 @@ The scenario is a program in `Face + Vault + Reveal + Consent + Clipboard + File
 ## The scenario (v1)
 
 A dialogue of offers. The main screen: the records as a table (kind, summary, context, valid, tags; secret summary
-fields masked as `•••• 4821`), with actions `find(text, tag?)`, `add`, `open(record)`, `kinds`, `save`, `quit`.
+fields masked as `•••• 4821`), with actions `find(text, tag?)`, `add`, `open(record)`, `kinds`.
 
 - `open(record)`: the record's fields (`Masked` for secrets), its validity, tags, note; actions `copy(field)`,
   `reveal(field)`, `revise`, `history`, `retire(reason?)`, `done`. `copy` of a secret field goes through `Reveal`.
@@ -137,9 +137,15 @@ fields masked as `•••• 4821`), with actions `find(text, tag?)`, `add`, `
   builds the `Schema` — the meta-schema's form.
 - `revise`: the same form prefilled with the current version; the result a new version with `parent`.
 - `history`: the versions as a table; `open` an old version read-only.
-- `save`/`quit`: `quit` with unsaved changes asks `confirm`.
+- EVERY CHANGE IS SAVED AT ONCE (2026-10-23): after each main-screen action that may change the vault (`add`,
+  `define`, and whatever was done inside an opened record: `revise`, `retire`, the audited `copy`/`reveal`) the
+  journal is written to the file when it has unsaved events — quietly, no screen for it; a FAILED save is shown as a
+  problem. There is no `save` action: it would have nothing to do.
+- NO QUIT, anywhere (the operator's rule, 2026-10-23: "an app runs for as long as it is open"). The main screen loops;
+  the application ends only by its face: a terminal at the end of its input or Ctrl-C, a window by its close, a page
+  by its tab, an agent by its client. Nothing is lost by closing, since nothing is ever unsaved past an action.
 
-Back is the face's. `quit` is the program's.
+Back is the face's.
 
 ## The faces of v1
 
@@ -155,7 +161,7 @@ Back is the face's. `quit` is the program's.
 - Secrets are never in a `View` except through `Reveal`; the kind's `secret` set decides, the owner edits it.
 - The policy is per audience: owner at the terminal, agent over MCP. Defaults: owner passes; agent gets open fields,
   consents per secret field, every reveal audited.
-- The file is plain in v1 and says so in its header; the owner is told at first save. v2 encrypts.
+- The file is plain in v1 and says so in its header. v2 encrypts.
 - No network in v1, nothing leaves the process but stdout to the client it was started by.
 
 ## v2
@@ -181,7 +187,7 @@ In order of what stresses the design most:
    is asked by elicitation, the question parked between requests, as over stdio; without one the policy refuses
    every secret and the server's instructions say so.
 8. The store on SQLite (2026-10-20): a `.db` file in any mode is okay-store's `jdbc` handler instead of `keeping` over
-   the journal file; `Main.Storage` is the one store per process, shared by every session, and the dialogue's Save
+   the journal file; `Main.Storage` is the one store per process, shared by every session, and the dialogue's saving
    writes `<db>.jsonl` beside it as the journal's backup. The dialogue does not know which; the results of every mode
    are `Unit` now, the vault no longer threaded through them.
 7. The other cut (2026-10-20): `verity browser` — the dialogue in the browser (`web/Local`, the same `Verity` scenario
