@@ -38,7 +38,8 @@ class LocalSuite extends munit.FunSuite {
   def submit(root: dom.Element, action: String): Unit = q(root, s"form[data-action=$action]").dispatchEvent(new dom.Event("submit", new dom.EventInit { bubbles = true; cancelable = true }))
   def settled: Future[Unit] = (1 to 12).foldLeft(Future.unit)((f, _) => f.flatMap(_ => Future(())))
 
-  test("the main screen from the server's store; a passport added; the list with the number masked; saved to the server's file") {
+  test("the main screen from the server's store; a passport added; the list with the number masked; " +
+    "saved to the server's file at once") {
     val root = mounted(Local.element(send, "v.jsonl"))
     settled.flatMap { _ =>
       assertEquals(q(root, "h1").textContent, "Verity")
@@ -53,13 +54,11 @@ class LocalSuite extends munit.FunSuite {
     }.flatMap { _ =>
       typeInto(root, "f-country", "UA"); typeInto(root, "f-tags", "travel")
       submit(root, "submit"); settled
-    }.flatMap { _ =>
-      assert(root.innerHTML.contains("•••• 3456") && !root.innerHTML.contains("AB123456"), root.innerHTML)
-      assertEquals(vault.records.size, 1)
-      q(root, "button[data-action=save]").click(); settled
     }.map { _ =>
-      assert(files.get("v.jsonl").exists(_.size == 2), files.toString)
-      assert(root.innerHTML.contains("saved to v.jsonl"), root.innerHTML)
+      assert(root.innerHTML.contains("•••• 3456") && !root.innerHTML.contains("AB123456"), root.innerHTML)
+      assertEquals(vault.records.size, 1); assertEquals(vault.unsaved, 0)
+      assert(files.get("v.jsonl").exists(_.size == 2), files.toString)   // no Save pressed: the header and the add
+      List("save", "quit").foreach(a => assert(root.querySelector(s"button[data-action=$a]") == null, root.innerHTML))
     }
   }
 }

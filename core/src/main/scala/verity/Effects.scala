@@ -59,8 +59,10 @@ class Domain[F <: Effects with Singleton](implicit implementation: F) {
   def open[R[_]](path: String)(implicit in: In[Files, R]): Either[String, List[String]] ! R = perform[Files].apply[R, Either[String, List[String]]](Files.Open(path, x => x))
   def save[R[_]](path: String, lines: List[String])(implicit in: In[Files, R]): Either[String, Unit] ! R = perform[Files].apply[R, Either[String, Unit]](Files.Save(path, lines, x => x))
 
-  /** the store's handler: okay-store's, in memory; ids and the clock given, so a test is deterministic */
-  def store(initial: Vault, ids: () => String, now: () => Long): stores.Keeping = stores.keeping(initial, ids, now)
+  /** the store's handler: okay-store's, in memory; ids and the clock given, so a test is deterministic; `seen` told the
+   * vault after every change, for whoever must see it while the dialogue runs (it never ends by itself) */
+  def store(initial: Vault, ids: () => String, now: () => Long,
+    seen: Vault => Unit = (_: Vault) => ()): stores.Keeping = stores.keeping(initial, ids, now, seen)
 
   /** THE POLICY over `Reveal`: who is asking decides. The owner at their own face is shown. An agent is shown only with
    * the owner's consent, asked each time, and every showing is audited into the journal. The clause runs in the row
@@ -110,13 +112,16 @@ class Domain[F <: Effects with Singleton](implicit implementation: F) {
       })
   }
 
-  // ---- the clipboard: recorded, or the system's
-  def clipboardRecording: ClipboardRecording = new ClipboardRecording
-  final class ClipboardRecording {
+  // ---- the clipboard: recorded (what was put, in order, told to `seen` after each put), or the system's
+  def clipboardRecording: ClipboardRecording = new ClipboardRecording(_ => ())
+  final class ClipboardRecording(seen: List[String] => Unit) {
+    def telling(seen: List[String] => Unit): ClipboardRecording = new ClipboardRecording(seen)
     def apply[R[_], Rest[_], A](p: A ! R)(implicit sp: Split[Clipboard, R, Rest]): (List[String], A) ! Rest =
       handle[Clipboard, List[String], R, Rest, A, (List[String], A)](p, Nil, new StatefulTailHandler[Clipboard, List[String], Rest, A, (List[String], A)] {
         def ret(s: List[String], a: A) = pure((s.reverse, a))
-        def answer[X](cell: Cell[List[String]], op: Clipboard[X]): X = op match { case Clipboard.Put(t, answer) => cell.set(t :: cell.get); answer(()) }
+        def answer[X](cell: Cell[List[String]], op: Clipboard[X]): X = op match {
+          case Clipboard.Put(t, answer) => cell.set(t :: cell.get); seen(cell.get.reverse); answer(())
+        }
       })
   }
   /** the platform's clipboard, by its `put`: the JVM's (`SystemClipboard.put`), the browser's */
@@ -129,16 +134,18 @@ class Domain[F <: Effects with Singleton](implicit implementation: F) {
       })
   }
 
-  // ---- files: in memory, or on disk
-  def filesInMemory(initial: Map[String, List[String]]): FilesInMemory = new FilesInMemory(initial)
-  final class FilesInMemory(initial: Map[String, List[String]]) {
+  // ---- files: in memory (the files told to `seen` after each save), or on disk
+  def filesInMemory(initial: Map[String, List[String]],
+    seen: Map[String, List[String]] => Unit = _ => ()): FilesInMemory = new FilesInMemory(initial, seen)
+  final class FilesInMemory(initial: Map[String, List[String]], seen: Map[String, List[String]] => Unit) {
     def apply[R[_], Rest[_], A](p: A ! R)(implicit sp: Split[Files, R, Rest]): (Map[String, List[String]], A) ! Rest =
       handle[Files, Map[String, List[String]], R, Rest, A, (Map[String, List[String]], A)](p, initial,
         new StatefulTailHandler[Files, Map[String, List[String]], Rest, A, (Map[String, List[String]], A)] {
           def ret(s: Map[String, List[String]], a: A) = pure((s, a))
           def answer[X](cell: Cell[Map[String, List[String]]], op: Files[X]): X = op match {
             case Files.Open(path, answer) => answer(Right(cell.get.getOrElse(path, Nil)))
-            case Files.Save(path, lines, answer) => cell.set(cell.get.updated(path, lines)); answer(Right(()))
+            case Files.Save(path, lines, answer) =>
+              cell.set(cell.get.updated(path, lines)); seen(cell.get); answer(Right(()))
           }
         })
   }

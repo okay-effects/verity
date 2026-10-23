@@ -33,7 +33,8 @@ object Main {
 
   /** WHERE THE STORE IS: the journal file folded in memory (`keeping`), or a SQLite database when the file is a `.db`
    * (okay-store's `jdbc`). One per process, shared by every session; the dialogue is the same either way. `journal` is
-   * the file the dialogue's Save writes: the file itself, or `<db>.jsonl` beside the database as its backup */
+   * the file the dialogue writes after every change: the file itself, or `<db>.jsonl` beside the database as its
+   * backup. The vault kept here is the one told after every change, so a session opened later starts from it */
   final class Storage(file: String) {
     val onDatabase: Boolean = file.endsWith(".db")
     val journal: String = if (onDatabase) file + ".jsonl" else file
@@ -43,7 +44,7 @@ object Main {
     val now: () => Long = () => System.currentTimeMillis()
     def apply[R[_], Rest[_], A](p: A ! R)(implicit sp: Split[Store, R, Rest]): A ! Rest = connection match {
       case Some(c) => jdbcs.on(c, ids, now)(p)
-      case None => store(vault, ids, now)(p).map { case (v, a) => vault = v; a }
+      case None => store(vault, ids, now, v => vault = v)(p).map(_._2)
     }
     /** the file's handler: the journal, whichever file the dialogue names */
     def onDisk: FilesOn = filesOn(_ => Disk.read(journal), (_, lines) => Disk.write(journal, lines))

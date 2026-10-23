@@ -9,8 +9,9 @@ import okay.faces.{Action, Face, Faces, Marks, Navigation, Navigations, View}
 /**
  * THE SCENARIO: a dialogue in `Face + Store + Reveal + Consent + Clipboard + Files + Navigation[Place]`. The main screen
  * lists the records; a record is opened, its fields shown with the secrets masked, copied, revealed, revised, retired,
- * its history read; a record is added by choosing a kind and filling the kind's form; a kind of one's own is defined;
- * the file is saved. No line of it knows a face: the terminal, the window, the test script and, later, an agent run it.
+ * its history read; a record is added by choosing a kind and filling the kind's form; a kind of one's own is defined.
+ * Every change is saved at once, and there is no Quit: the dialogue runs for as long as its face is open. No line of it
+ * knows a face: the terminal, the window, the test script and, later, an agent run it.
  */
 /** `today`, when known, tells an expiring or expired validity from one that holds */
 class Verity[F <: Effects with Singleton](val faces: Faces[F], today: () => Option[okay.effects.shape.Day] = () => None) {
@@ -115,8 +116,6 @@ class Verity[F <: Effects with Singleton](val faces: Faces[F], today: () => Opti
   final case class OpenIt(n: Int) extends MainChoice
   case object AddIt extends MainChoice
   case object DefineIt extends MainChoice
-  case object SaveIt extends MainChoice
-  case object QuitIt extends MainChoice
 
   def main[R[_]](path: String, query: (String, Option[String]) = ("", None))(implicit n: Needs[R]): Unit ! R = {
     import n._
@@ -126,18 +125,11 @@ class Verity[F <: Effects with Singleton](val faces: Faces[F], today: () => Opti
       offer[MainChoice, R](listing(byKind, rs), openIt ++ List(
         Action.plain[MainChoice]("add", "Add a record")(AddIt),
         Action[FindIt, MainChoice]("find", "Find", record(field("text", text).withDefault("").labelled("Text"), field("tag", text.optional).labelled("Tag"))(FindIt(_, _))(q => (q.text, q.tag)), Some("by text in the fields, by tag"))(q => q),
-        Action.plain[MainChoice]("define", "Define a kind")(DefineIt),
-        Action.plain[MainChoice]("save", "Save")(SaveIt),
-        Action.plain[MainChoice]("quit", "Quit")(QuitIt))).flatMap {
-        case OpenIt(i) => opened[R](path, rs(i).id).flatMap(_ => main[R](path, query))
+        Action.plain[MainChoice]("define", "Define a kind")(DefineIt))).flatMap {
+        case OpenIt(i) => opened[R](path, rs(i).id).flatMap(_ => persist[R](path)).flatMap(_ => main[R](path, query))
         case FindIt(t, tag) => main[R](path, (t, tag.filter(_.nonEmpty)))
-        case AddIt => adding[R].flatMap(_ => main[R](path))
-        case DefineIt => defining[R].flatMap(_ => main[R](path))
-        case SaveIt => saving[R](path).flatMap(_ => main[R](path, query))
-        case QuitIt => journaled[R].flatMap { case (_, unsaved) =>
-          if (unsaved == 0) pure[Unit, R](())
-          else confirm[R](View.text(s"$unsaved unsaved changes. Save before quitting?")).flatMap(yes => if (yes) saving[R](path) else pure[Unit, R](()))
-        }
+        case AddIt => adding[R].flatMap(_ => persist[R](path)).flatMap(_ => main[R](path, ("", None)))
+        case DefineIt => defining[R].flatMap(_ => persist[R](path)).flatMap(_ => main[R](path, ("", None)))
       }
     })
   }
@@ -238,17 +230,21 @@ class Verity[F <: Effects with Singleton](val faces: Faces[F], today: () => Opti
     }
   }
 
-  def saving[R[_]](path: String)(implicit n: Needs[R]): Unit ! R = {
+  /** every change saved at once: the journal written to `path` when it has unsaved events, quietly; a failed save is
+   * said */
+  def persist[R[_]](path: String)(implicit n: Needs[R]): Unit ! R = {
     import n._
-    journaled[R].flatMap { case (events, _) =>
-      save[R](path, Journal.write(Journal.Header("verity", 1, events.headOption.map(_.at).getOrElse(0L)), events)).flatMap {
-        case Right(()) => saved[R].flatMap(_ => show[R](View.info(s"saved to $path")))
-        case Left(e) => show[R](View.problem(s"not saved: $e"))
-      }
+    journaled[R].flatMap { case (events, unsaved) =>
+      if (unsaved == 0) pure[Unit, R](())
+      else save[R](path, Journal.write(Journal.Header("verity", 1, events.headOption.map(_.at).getOrElse(0L)), events))
+        .flatMap {
+          case Right(()) => saved[R]
+          case Left(e) => show[R](View.problem(s"not saved: $e"))
+        }
     }
   }
 
-  /** the whole: the file opened, the main screen until quit */
+  /** the whole: the file opened, the main screen for as long as the face is open — there is no quit */
   def run[R[_]](path: String)(implicit n: Needs[R]): Unit ! R = {
     import n._
     open[R](path).flatMap {
