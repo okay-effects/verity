@@ -40,14 +40,15 @@ object Main {
     val journal: String = if (onDatabase) file + ".jsonl" else file
     private val connection = if (onDatabase) Some(Sqlite.open(file, Kinds.builtIn)) else None
     @volatile var vault: Vault = if (onDatabase) Vault.empty else Disk.read(file).map(Journal.read).map { case (_, events, _) => Vault.of(events) }.getOrElse(Vault.empty)
-    val ids: () => String = () => java.util.UUID.randomUUID().toString
+    val ids: () => String = uniqueIds
     val now: () => Long = () => System.currentTimeMillis()
     def apply[R[_], Rest[_], A](p: A ! R)(implicit sp: Split[Store, R, Rest]): A ! Rest = connection match {
       case Some(c) => jdbcs.on(c, ids, now)(p)
       case None => store(vault, ids, now, v => vault = v)(p).map(_._2)
     }
     /** the file's handler: the journal, whichever file the dialogue names */
-    def onDisk: FilesOn = filesOn(_ => Disk.read(journal), (_, lines) => Disk.write(journal, lines))
+    def onDisk: FilesOn = filesOn(_ => Disk.read(journal), (_, lines) => Disk.write(journal, lines),
+      (_, lines) => Disk.append(journal, lines))
     def where: String = if (onDatabase) s"$file (SQLite), the journal's backup $journal" else file
   }
 

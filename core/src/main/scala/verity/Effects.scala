@@ -20,10 +20,11 @@ object Consent { final case class Ask[X](what: View, answer: Boolean => X) exten
 sealed trait Clipboard[X]
 object Clipboard { final case class Put[X](text: String, answer: Unit => X) extends Clipboard[X] }
 
-/** the file: its lines, read and written whole */
+/** the file: its lines, read; appended to (the journal's way: what is written stays); or written whole */
 sealed trait Files[X]
 object Files {
   final case class Open[X](path: String, answer: Either[String, List[String]] => X) extends Files[X]
+  final case class Append[X](path: String, lines: List[String], answer: Either[String, Unit] => X) extends Files[X]
   final case class Save[X](path: String, lines: List[String], answer: Either[String, Unit] => X) extends Files[X]
 }
 
@@ -53,16 +54,22 @@ class Domain[F <: Effects with Singleton](implicit implementation: F) {
   def audit[R[_]](id: RecordId, field: String, audience: String)(implicit in: In[Store, R]): Unit ! R = stores.audit[R](id, field, audience)
   def journaled[R[_]](implicit in: In[Store, R]): (List[Event], Int) ! R = stores.journaled[R]
   def saved[R[_]](implicit in: In[Store, R]): Unit ! R = stores.saved[R]
+  def adopt[R[_]](journal: List[Event])(implicit in: In[Store, R]): Unit ! R = stores.adopt[R](journal)
   def reveal[R[_]](id: RecordId, field: String)(implicit in: In[Reveal, R]): Option[String] ! R = perform[Reveal].apply[R, Option[String]](Reveal.Show(id, field, x => x))
   def consent[R[_]](what: View)(implicit in: In[Consent, R]): Boolean ! R = perform[Consent].apply[R, Boolean](Consent.Ask(what, x => x))
   def copy[R[_]](text: String)(implicit in: In[Clipboard, R]): Unit ! R = perform[Clipboard].apply[R, Unit](Clipboard.Put(text, x => x))
   def open[R[_]](path: String)(implicit in: In[Files, R]): Either[String, List[String]] ! R = perform[Files].apply[R, Either[String, List[String]]](Files.Open(path, x => x))
   def save[R[_]](path: String, lines: List[String])(implicit in: In[Files, R]): Either[String, Unit] ! R = perform[Files].apply[R, Either[String, Unit]](Files.Save(path, lines, x => x))
+  def append[R[_]](path: String, lines: List[String])(implicit in: In[Files, R]): Either[String, Unit] ! R =
+    perform[Files].apply[R, Either[String, Unit]](Files.Append(path, lines, x => x))
 
   /** the store's handler: okay-store's, in memory; ids and the clock given, so a test is deterministic; `seen` told the
    * vault after every change, for whoever must see it while the dialogue runs (it never ends by itself) */
   def store(initial: Vault, ids: () => String, now: () => Long,
     seen: Vault => Unit = (_: Vault) => ()): stores.Keeping = stores.keeping(initial, ids, now, seen)
+  /** the ids of the real thing: random, so two sessions, two processes, two devices writing one journal never mint
+   * the same — a counter is for a test */
+  def uniqueIds: () => String = () => java.util.UUID.randomUUID().toString
 
   /** THE POLICY over `Reveal`: who is asking decides. The owner at their own face is shown. An agent is shown only with
    * the owner's consent, asked each time, and every showing is audited into the journal. The clause runs in the row
@@ -144,19 +151,26 @@ class Domain[F <: Effects with Singleton](implicit implementation: F) {
           def ret(s: Map[String, List[String]], a: A) = pure((s, a))
           def answer[X](cell: Cell[Map[String, List[String]]], op: Files[X]): X = op match {
             case Files.Open(path, answer) => answer(Right(cell.get.getOrElse(path, Nil)))
+            case Files.Append(path, lines, answer) =>
+              cell.set(cell.get.updated(path, cell.get.getOrElse(path, Nil) ++ lines)); seen(cell.get)
+              answer(Right(()))
             case Files.Save(path, lines, answer) =>
               cell.set(cell.get.updated(path, lines)); seen(cell.get); answer(Right(()))
           }
         })
   }
-  /** the platform's files, by its `read` and `write`: the disk's (`Disk.read`, `Disk.write`) */
-  def filesOn(read: String => Either[String, List[String]], write: (String, List[String]) => Either[String, Unit]): FilesOn = new FilesOn(read, write)
-  final class FilesOn(read: String => Either[String, List[String]], write: (String, List[String]) => Either[String, Unit]) {
+  /** the platform's files, by its `read`, `write` and `append`: the disk's (`Disk.read`, `Disk.write`,
+   * `Disk.append`) */
+  def filesOn(read: String => Either[String, List[String]], write: (String, List[String]) => Either[String, Unit],
+    append: (String, List[String]) => Either[String, Unit]): FilesOn = new FilesOn(read, write, append)
+  final class FilesOn(read: String => Either[String, List[String]],
+    write: (String, List[String]) => Either[String, Unit], append: (String, List[String]) => Either[String, Unit]) {
     def apply[R[_], Rest[_], A](p: A ! R)(implicit sp: Split[Files, R, Rest]): A ! Rest =
       handle[Files, R, Rest, A, A](p, new TailHandler[Files, Rest, A, A] {
         def ret(a: A) = pure(a)
         def answer[X](op: Files[X]): X = op match {
           case Files.Open(path, answer) => answer(read(path))
+          case Files.Append(path, lines, answer) => answer(append(path, lines))
           case Files.Save(path, lines, answer) => answer(write(path, lines))
         }
       })

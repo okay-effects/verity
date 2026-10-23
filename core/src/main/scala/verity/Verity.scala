@@ -230,17 +230,24 @@ class Verity[F <: Effects with Singleton](val faces: Faces[F], today: () => Opti
     }
   }
 
-  /** every change saved at once: the journal written to `path` when it has unsaved events, quietly; a failed save is
-   * said */
+  /** every change saved at once, and the journal APPEND-ONLY: the file read, the vault's events it lacks (by identity)
+   * appended — the header first to an empty file — and the file as it now stands adopted, so what another session
+   * appended, or what the face's back stepped over, is in the vault again. Quietly; a failed save is said */
   def persist[R[_]](path: String)(implicit n: Needs[R]): Unit ! R = {
     import n._
-    journaled[R].flatMap { case (events, unsaved) =>
-      if (unsaved == 0) pure[Unit, R](())
-      else save[R](path, Journal.write(Journal.Header("verity", 1, events.headOption.map(_.at).getOrElse(0L)), events))
-        .flatMap {
-          case Right(()) => saved[R]
+    open[R](path).flatMap {
+      case Left(e) => show[R](View.problem(s"not saved: $e"))
+      case Right(lines) => journaled[R].flatMap { case (events, _) =>
+        val (_, written, _) = Journal.read(lines)
+        val known = written.map(Event.identity).toSet
+        val lacking = events.filterNot(e => known(Event.identity(e)))
+        val adding = Journal.write(Journal.Header("verity", 1, lacking.headOption.map(_.at).getOrElse(0L)), lacking)
+        (if (lacking.isEmpty) pure[Either[String, Unit], R](Right(()))
+         else append[R](path, if (lines.forall(_.trim.isEmpty)) adding else adding.tail)).flatMap {
+          case Right(()) => adopt[R](written ++ lacking).flatMap(_ => saved[R])
           case Left(e) => show[R](View.problem(s"not saved: $e"))
         }
+      }
     }
   }
 
@@ -250,8 +257,11 @@ class Verity[F <: Effects with Singleton](val faces: Faces[F], today: () => Opti
     open[R](path).flatMap {
       case Left(e) => show[R](View.problem(s"$path: $e"))
       case Right(lines) =>
-        val (_, _, damaged) = Journal.read(lines)
-        (if (damaged.isEmpty) pure[Unit, R](()) else show[R](View.warning(s"${damaged.size} damaged line(s) skipped: ${damaged.map(_.line).mkString(", ")}"))).flatMap(_ => main[R](path))
+        // the whole file replayed, every writer's events: the vault starts from the file as it stands
+        val (_, events, damaged) = Journal.read(lines)
+        adopt[R](events).flatMap(_ => if (damaged.isEmpty) pure[Unit, R](()) else show[R](View.warning(
+          s"${damaged.size} damaged line(s) skipped: ${damaged.map(_.line).mkString(", ")}")))
+          .flatMap(_ => main[R](path))
     }
   }
 }

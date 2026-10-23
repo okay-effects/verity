@@ -19,4 +19,17 @@ object Disk {
     val p = Paths.get(path); Option(p.getParent).foreach(d => NioFiles.createDirectories(d))
     NioFiles.write(p, lines.asJava, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE); Right(())
   } catch { case e: Exception => Left(e.getMessage) }
+  /** lines added at the end, what is there untouched: opened to append, the batch one write, one appender at a time in
+   * this process (sessions of a server share the file) */
+  def append(path: String, lines: List[String]): Either[String, Unit] = appending.synchronized {
+    try {
+      val p = Paths.get(path); Option(p.getParent).foreach(d => NioFiles.createDirectories(d))
+      val bytes = java.nio.ByteBuffer.wrap(lines.map(_ + System.lineSeparator).mkString.getBytes("UTF-8"))
+      val channel = java.nio.channels.FileChannel.open(p,
+        StandardOpenOption.CREATE, StandardOpenOption.APPEND, StandardOpenOption.WRITE)
+      try while (bytes.hasRemaining) channel.write(bytes) finally channel.close()
+      Right(())
+    } catch { case e: Exception => Left(e.getMessage) }
+  }
+  private val appending = new Object
 }

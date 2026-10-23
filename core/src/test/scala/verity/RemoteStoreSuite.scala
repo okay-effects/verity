@@ -50,10 +50,10 @@ class RemoteStoreSuite extends munit.FunSuite {
     assertEquals(remote, direct)
     assertEquals(remote._1.map(_.fields.get("number")), List(Some(Json.Str("AB123457"))))
     assertEquals(remote._3.size, 2); assertEquals(remote._4, 4)
-    assertEquals(vault.retired, Set(RecordId("id1")))
+    assertEquals(vault.retired, Set(RecordId("id2")))   // id1 the definition's event
     assert(calls.reverse.head.startsWith("POST /store/define"), calls.toString)
     assert(calls.exists(_.startsWith("GET /store/find?text=AB1234")), calls.toString)
-    assert(calls.exists(_.startsWith("GET /store/get?id=id1")), calls.toString)
+    assert(calls.exists(_.startsWith("GET /store/get?id=id2")), calls.toString)
   }
   test("the description lists every operation of the store with its method") {
     val (_, r) = Machine.run(store(Vault.empty, ids(), now)(rest.serve[Store, S](okay.store.Stores.describe, "/store").service(Request.get("/store"))))
