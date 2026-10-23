@@ -29,7 +29,6 @@ abstract class AppendChecks(val fx0: Runner, name: String) extends munit.FunSuit
   final class Disk(var files: Map[String, List[String]] = Map.empty) {
     def lines: List[String] = files.getOrElse("v.jsonl", Nil)
     def handler: FilesOn = filesOn(p => Right(files.getOrElse(p, Nil)),
-      (p, ls) => { files = files.updated(p, ls); Right(()) },
       (p, ls) => { files = files.updated(p, files.getOrElse(p, Nil) ++ ls); Right(()) })
   }
   var t = 0L

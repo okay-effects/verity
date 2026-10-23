@@ -51,7 +51,7 @@ abstract class DomainChecks(val fx0: Runner, name: String) extends munit.FunSuit
   test(s"$name: files in memory, and the journal through them") {
     type F[X] = Sum[Void, Files, X]
     val lines = Journal.write(Journal.Header("verity", 1, 1L), Nil)
-    val (files, got) = fx0.run(filesInMemory(Map.empty)(save[F]("a.jsonl", lines).flatMap(_ => open[F]("a.jsonl"))))
+    val (files, got) = fx0.run(filesInMemory(Map.empty)(append[F]("a.jsonl", lines).flatMap(_ => open[F]("a.jsonl"))))
     assertEquals(got, Right(lines)); assertEquals(files.keySet, Set("a.jsonl"))
     assertEquals(fx0.run(filesInMemory(Map.empty)(open[F]("none")))._2, Right(Nil))
   }

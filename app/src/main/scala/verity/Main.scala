@@ -47,8 +47,7 @@ object Main {
       case None => store(vault, ids, now, v => vault = v)(p).map(_._2)
     }
     /** the file's handler: the journal, whichever file the dialogue names */
-    def onDisk: FilesOn = filesOn(_ => Disk.read(journal), (_, lines) => Disk.write(journal, lines),
-      (_, lines) => Disk.append(journal, lines))
+    def onDisk: FilesOn = filesOn(_ => Disk.read(journal), (_, lines) => Disk.append(journal, lines))
     def where: String = if (onDatabase) s"$file (SQLite), the journal's backup $journal" else file
   }
 

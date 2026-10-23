@@ -15,10 +15,6 @@ object Disk {
     if (!NioFiles.exists(p)) Right(Nil)
     else try Right(NioFiles.readAllLines(p).asScala.toList) catch { case e: Exception => Left(e.getMessage) }
   }
-  def write(path: String, lines: List[String]): Either[String, Unit] = try {
-    val p = Paths.get(path); Option(p.getParent).foreach(d => NioFiles.createDirectories(d))
-    NioFiles.write(p, lines.asJava, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE); Right(())
-  } catch { case e: Exception => Left(e.getMessage) }
   /** lines added at the end, what is there untouched: opened to append, the batch one write, one appender at a time in
    * this process (sessions of a server share the file) */
   def append(path: String, lines: List[String]): Either[String, Unit] = appending.synchronized {

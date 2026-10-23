@@ -134,7 +134,7 @@ sealed trait Vault[X]      // Kinds, Find(query), Get(id), History(id), Define(k
 sealed trait Reveal[X]     // Reveal(id, field): String — a secret in the clear; the only way to one
 sealed trait Consent[X]    // Ask(what: View, audience: Audience): Boolean — the OWNER's yes or no, whatever face the asker has
 sealed trait Clipboard[X]  // Put(text)
-sealed trait Files[X]      // Open(path): lines, Append(path, lines), Save(path, lines) (whole), Merge(path) (v2)
+sealed trait Files[X]      // Open(path): lines, Append(path, lines) — never written whole; Merge(path) (v2)
 ```
 
 The scenario is a program in `Face + Vault + Reveal + Consent + Clipboard + Files`.
