@@ -87,6 +87,38 @@ line is reported with its number, not thrown. Layered: a later version wraps the
 (`{"verity": 1, "encrypted": "aes-256-gcm", "kdf": "argon2id", ...}` then one base64 body); the journal inside is
 unchanged. DECIDED: v1 writes the plain layer only, with the header designed for the wrapper.
 
+### The journal is append-only (2026-10-23)
+
+The rule: a save APPENDS to the file the events it does not have yet and never rewrites a line that is there. What
+was saved stays saved, whatever a session does after.
+
+- Identity: every event carries `eid`, minted by the store's handler from the same `ids` that mint record and version
+  ids (`{"type":"record-added","eid":"…","record":…}`). A line written before ids (an old file) has none; its identity
+  is a hash of what it says (`Event.identity`, okay-store), so an old file reads as before and is never rewritten — new
+  events are appended after its lines. The header and its version are unchanged: `eid` is an optional field.
+- Ids are unique across sessions and processes: the JVM's handler is given `Domain.uniqueIds` (a random UUID), the
+  one generator of the real thing; a counter is for tests only, and never shared by two writers.
+- A save (`persist`, after every action that may change the vault): `Open` the file, read its events, `Append` the
+  vault's events whose identities are not among them (the header first when the file is empty), then `adopt` the
+  file's events plus those appended into the store: what is kept becomes the fold of the file as it now stands. A
+  repeated save appends nothing. `Files.Append(path, lines)` is the effect's own operation, on every handler: in
+  memory, the disk (opened to append, the batch one write, under one lock per process), the server's `/files`.
+- TWO WRITERS (two tabs, two sessions of `verity web`/`api`, two processes on one file): each appends only its own
+  events, so both writers' events end in the file, in the order they were appended. Each session's vault converges
+  at its next save (it adopts what the other appended) and at its start (`run` adopts the whole file), so a reload
+  shows every writer's events. Between two saves a session does not see the other's changes: it reads at a save.
+- TWO REVISIONS OF ONE RECORD from two writers who both saw version v1 are two versions, both with parent v1: a fork.
+  The history shows both, newest (appended later) first, each with its parent; the one appended later is the current
+  version. Nothing is lost; v2's merge will offer a fork as a conflict. A retirement by one writer holds over a
+  revision by another (the record is retired; its history keeps the revision).
+- BACK after a save: the face's back resumes an earlier step with the vault as it was then, in memory; it cannot
+  remove what was written. The next save appends the new change and adopts the file, so the stepped-back-over events
+  are in the vault again: back is navigation, not undo. A change to a record revised in the stepped-over part is a
+  fork, as above.
+- On a database (`.db`), the database is the store shared by every session of the process and the journal file its
+  backup: the save appends to `<db>.jsonl` what it lacks, and `adopt` takes in, after the database's own events, the
+  file's events the database lacks.
+
 Attachments (scans) later: an event with the file's hash, the bytes beside the file in a directory named after it.
 Nothing in the model changes for them.
 
@@ -102,7 +134,7 @@ sealed trait Vault[X]      // Kinds, Find(query), Get(id), History(id), Define(k
 sealed trait Reveal[X]     // Reveal(id, field): String — a secret in the clear; the only way to one
 sealed trait Consent[X]    // Ask(what: View, audience: Audience): Boolean — the OWNER's yes or no, whatever face the asker has
 sealed trait Clipboard[X]  // Put(text)
-sealed trait Files[X]      // Open(path): Journal, Save(path, journal), Merge(path) (v2)
+sealed trait Files[X]      // Open(path): lines, Append(path, lines), Save(path, lines) (whole), Merge(path) (v2)
 ```
 
 The scenario is a program in `Face + Vault + Reveal + Consent + Clipboard + Files`.
@@ -116,7 +148,7 @@ The scenario is a program in `Face + Vault + Reveal + Consent + Clipboard + File
   `face-mcp` by elicitation (specs/faces.md there), refusing when the client cannot elicit.
 - `Clipboard`: `pbcopy`/`xclip`/`clip` on the terminal face (a subprocess, no dependency); the value in the tool result
   for the agent (which is a reveal, and goes through the policy).
-- `Files`: the file as above; `Open` of a missing path is an empty journal.
+- `Files`: the file as above; `Open` of a missing path is an empty journal; the scenario only appends.
 
 ## The scenario (v1)
 
@@ -139,8 +171,8 @@ fields masked as `•••• 4821`), with actions `find(text, tag?)`, `add`, `
 - `history`: the versions as a table; `open` an old version read-only.
 - EVERY CHANGE IS SAVED AT ONCE (2026-10-23): after each main-screen action that may change the vault (`add`,
   `define`, and whatever was done inside an opened record: `revise`, `retire`, the audited `copy`/`reveal`) the
-  journal is written to the file when it has unsaved events — quietly, no screen for it; a FAILED save is shown as a
-  problem. There is no `save` action: it would have nothing to do.
+  vault's new events are appended to the file — quietly, no screen for it; a FAILED save is shown as a problem.
+  There is no `save` action: it would have nothing to do. See "The journal is append-only".
 - NO QUIT, anywhere (the operator's rule, 2026-10-23: "an app runs for as long as it is open"). The main screen loops;
   the application ends only by its face: a terminal at the end of its input or Ctrl-C, a window by its close, a page
   by its tab, an agent by its client. Nothing is lost by closing, since nothing is ever unsaved past an action.
@@ -211,4 +243,7 @@ Native when okay-faces' `face-term` and `face-mcp` are. One executable `verity` 
 - The policy: an agent's reveal without consent is refused and not audited; with consent, revealed once and audited;
   the owner's passes.
 - The scenario on `face-test`: each path, golden views; back restores the vault's state before an `add`.
+- Append-only: two sessions over one file each add a record, interleaved — the file has both, a reload shows both;
+  a change, back past it, another change — the file keeps the first; a repeated save appends nothing; two sessions'
+  ids differ; an old journal (no `eid`) reads, and is appended to, not rewritten.
 - `face-term` end to end with a scripted console; `face-mcp` with a scripted session.
